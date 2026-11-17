@@ -130,6 +130,8 @@ object Catalog {
 fun countryName(code: String) = if (code.length == 2) Locale("", code.uppercase(Locale.ROOT)).displayCountry else ""
 
 /** The three public playlists, downloaded by the TV itself and kept 12 hours. */
+internal fun playlistCacheExpired(modified: Long, now: Long, maxAge: Long = 12 * 3600_000L): Boolean =
+    modified <= 0L || modified > now || now - modified > maxAge
 object Playlists {
     class Source(val name: String, val url: String)
 
@@ -150,7 +152,9 @@ object Playlists {
 
     /** The list's groups (country, category), Portuguese and French first, then the biggest. Blocking. */
     fun folders(c: Context, s: Source, refresh: Boolean = false): List<Folder> {
-        if (!refresh) folders[s.name]?.let { return it }
+        // Cached folders must not defeat the on-disk 12-hour refresh policy.
+        if (!refresh && !playlistCacheExpired(file(c, s).lastModified(), System.currentTimeMillis()))
+            folders[s.name]?.let { return it }
         val groups = LinkedHashMap<String, MutableList<Channel>>()
         for (ch in load(c, s, refresh))
             for (g in ch.group.split(';')) groups.getOrPut(g.trim().ifEmpty { "-" }) { ArrayList() } += ch
@@ -162,9 +166,10 @@ object Playlists {
     /** Blocking: call it off the main thread. Offline, the last downloaded copy is used, however old. */
     @Throws(IOException::class)
     fun load(c: Context, s: Source, refresh: Boolean = false): List<Channel> {
-        if (!refresh) memory[s.name]?.let { return it }
         val file = file(c, s)
-        if (refresh || System.currentTimeMillis() - file.lastModified() > MAX_AGE) try {
+        val expired = playlistCacheExpired(file.lastModified(), System.currentTimeMillis(), MAX_AGE)
+        if (!refresh && !expired) memory[s.name]?.let { return it }
+        if (refresh || expired) try {
             val tmp = File(c.filesDir, s.name + ".tmp")
             val http = URL(s.url).openConnection() as HttpURLConnection
             try {
@@ -180,7 +185,8 @@ object Playlists {
             if (!tmp.renameTo(file)) throw IOException("cannot store the playlist")
         } catch (e: IOException) {
             Log.w(TAG, "playlist ${s.name}: $e")
-            if (!file.exists()) throw e
+            // Manual refresh must report a failure even if the last good copy is preserved.
+            if (refresh || !file.exists()) throw e
         }
         return file.useLines { parseM3u(it, s.name) }.also { memory[s.name] = it; folders.remove(s.name) }
     }
