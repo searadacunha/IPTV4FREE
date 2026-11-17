@@ -84,36 +84,57 @@ def probe(url):
 
 
 def probe_hls(base, text, depth=0):
-    quality = ""
+    """Check a real segment, falling back to lower HLS variants if the best one fails."""
     variants = re.findall(r"#EXT-X-STREAM-INF:([^\n]*)\n(?:#[^\n]*\n)*([^#\n][^\n]*)", text)
     if variants and depth == 0:
         def height(v):
             m = re.search(r"RESOLUTION=\d+x(\d+)", v[0])
             return int(m.group(1)) if m else 0
+
         def rate(v):
             m = re.search(r"[^-]BANDWIDTH=(\d+)", "," + v[0])
             return int(m.group(1)) if m else 0
+
         fit = [v for v in variants if height(v) <= 1080] or variants
-        best = max(fit, key=lambda v: (height(v), rate(v)))
-        codecs = re.search(r'CODECS="([^"]*)"', best[0])
-        quality = " ".join(filter(None, [f"{height(best)}p" if height(best) else "", codecs.group(1) if codecs else ""]))
-        code, final, ctype, body = fetch(urllib.parse.urljoin(base, best[1].strip()))
-        if code != 200:
-            return {"status": "HTTP403" if code in (403, 451) else "VARIANT" + str(code), "detail": "variant playlist", "quality": quality}
-        r = probe_hls(final, body.decode("utf-8", "replace"), 1)
-        r["quality"] = quality
-        return r
+        candidates = sorted(fit, key=lambda v: (height(v), rate(v)), reverse=True)
+        failure = {"status": "VARIANT0", "detail": "no playable variant"}
+        for variant in candidates:
+            codecs = re.search(r'CODECS="([^"]*)"', variant[0])
+            quality = " ".join(filter(None, [
+                f"{height(variant)}p" if height(variant) else "",
+                codecs.group(1) if codecs else "",
+            ]))
+            code, final, ctype, body = fetch(urllib.parse.urljoin(base, variant[1].strip()))
+            if code != 200:
+                failure = {"status": "HTTP403" if code in (403, 451) else "VARIANT" + str(code),
+                           "detail": "variant playlist", "quality": quality}
+                continue
+            if not body.lstrip(b"\xef\xbb\xbf \r\n\t").startswith(b"#EXTM3U"):
+                failure = {"status": "VARIANT_FORMAT", "detail": "not an HLS playlist", "quality": quality}
+                continue
+            result = probe_hls(final, body.decode("utf-8", "replace"), 1)
+            result["quality"] = quality
+            if result["status"] == "OK":
+                return result
+            failure = result
+        return failure
+
     key = re.search(r"#EXT-X-KEY:METHOD=([A-Z0-9-]+)([^\n]*)", text)
     if key and key.group(1) not in ("NONE", "AES-128"):
-        return {"status": "DRM", "detail": "HLS " + key.group(1)}  # SAMPLE-AES and friends: FairPlay or Widevine
+        return {"status": "DRM", "detail": "HLS " + key.group(1)}
     segments = [l.strip() for l in text.splitlines() if l.strip() and not l.startswith("#")]
     if not segments:
         return {"status": "EMPTY", "detail": "playlist without segments"}
     code, _, ctype, body = fetch(urllib.parse.urljoin(base, segments[-1]), 32768)
     if code != 200 or len(body) < 188:
-        return {"status": "HTTP403" if code in (403, 451) else "SEGMENT" + str(code), "detail": "media segment"}
+        return {"status": "HTTP403" if code in (403, 451) else "SEGMENT" + str(code),
+                "detail": "media segment"}
+    head = body[:256].lstrip(b"\xef\xbb\xbf \r\n\t").lower()
+    if ctype.lower().startswith(("text/html", "application/json")) or head.startswith(
+        (b"<!doctype html", b"<html", b"<?xml", b'{"error"', b'{"message"')
+    ):
+        return {"status": "SEGMENT_FORMAT", "detail": "server returned a page instead of media"}
     return {"status": "OK", "detail": "HLS" + (" AES-128" if key and key.group(1) == "AES-128" else "")}
-
 
 def probe_all(urls):
     """At most 2 requests at a time per host: lists point hundreds of channels at the same CDN."""
