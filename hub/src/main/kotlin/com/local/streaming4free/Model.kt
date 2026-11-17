@@ -25,6 +25,9 @@ data class Channel(
     val source: String = "",
     val id: String = "", // tvg-id
     val quality: String = "", // what the probe read in the playlist, catalog only
+    val alts: List<String> = emptyList(), // other URLs of the same channel, checked by the probe
+    val geo: Boolean = false, // the list says it is geo-blocked
+    val headers: Boolean = false, // the list asks for a Referer or user agent, which this player never sends
 ) : Item() {
     override val key get() = url
     /** A YouTube page, not a stream: opened by SmartTube or the YouTube app. */
@@ -88,6 +91,8 @@ val APPS = listOf(
     App("rtp", listOf("pt.rtp.play"), "RTP Play", R.string.app_rtp, Terms.FREE, setOf(Cat.LIVE, Cat.SERIES, Cat.DOCS, Cat.SPORT)),
     App("tvi", listOf("pt.iol.tviplayer.androidtv"), "TVI Player", R.string.app_tvi, Terms.FREE, setOf(Cat.LIVE, Cat.SERIES)),
     App("opto", listOf("com.impresa.opta"), "OPTO SIC", R.string.app_opto, Terms.FREEMIUM, setOf(Cat.LIVE, Cat.SERIES)),
+    App("france24", listOf("com.france24.androidapp.gtv", "com.france24.androidapp"), "France 24", R.string.app_france24, Terms.FREE, setOf(Cat.LIVE)),
+    App("tv5monde", listOf("com.dotscreen.tv5mondeplus.mobile"), "TV5MONDE+", R.string.app_tv5monde, Terms.FREE, setOf(Cat.LIVE, Cat.DOCS)),
     App("rtve", listOf("com.rtve.androidtv"), "RTVE Play", R.string.app_rtve, Terms.FREE, setOf(Cat.LIVE, Cat.SERIES, Cat.DOCS)),
     App("redbull", listOf("com.nousguide.android.rbtv"), "Red Bull TV", R.string.app_redbull, Terms.FREE, setOf(Cat.SPORT, Cat.DOCS)),
     App("smarttube", listOf("org.smarttube.stable", "org.smarttube.beta"), "SmartTube", R.string.app_smarttube, Terms.FREE, setOf(Cat.YOUTUBE), false),

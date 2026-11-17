@@ -27,6 +27,8 @@
     <string name="app_rtp">RTP em direto e a pedido</string>
     <string name="app_tvi">TVI em direto e a pedido</string>
     <string name="app_opto">SIC em direto e a pedido</string>
+    <string name="app_france24">notícias em contínuo</string>
+    <string name="app_tv5monde">canais francófonos, direto e a pedido</string>
     <string name="app_rtve">TV espanhola</string>
     <string name="app_redbull">desportos radicais</string>
     <string name="app_smarttube">YouTube sem anúncios</string>
@@ -66,6 +68,9 @@
     <string name="to_install">Para instalar</string>
     <string name="channels_count">%d canais</string>
     <string name="dead">Indisponível hoje</string>
+    <string name="hint_geo">bloqueio geográfico</string>
+    <string name="hint_headers">cabeçalhos exigidos</string>
+    <string name="hint_sources">%d fontes</string>
     <string name="fav_added">Adicionado aos favoritos</string>
     <string name="fav_removed">Removido dos favoritos</string>
     <string name="no_store">Play Store não encontrada nesta TV</string>
@@ -78,7 +83,27 @@
 
     <string name="opening">A abrir %s…</string>
     <string name="reconnecting">Ligação perdida, nova tentativa %1$d de %2$d…</string>
-    <string name="play_error">%1$s: fonte indisponível (%2$s).\nOK: tentar de novo · Voltar: regressar</string>
+    <string name="switching">A fonte %1$d não responde (%2$s), a tentar a fonte %3$d/%4$d…</string>
+    <string name="waiting_network">%s: sem ligação. A reprodução continua quando a rede voltar.\nOK: tentar de novo · Voltar: regressar</string>
+    <string name="play_error">%1$s: %2$s (%3$s).</string>
+    <string name="all_failed">As %d fontes conhecidas falharam.</string>
+    <string name="no_alternative">Nenhuma outra fonte conhecida para este canal.</string>
+    <string name="rights_fr">Sem direto grátis e legal a partir de Portugal: o %s não transmite este canal aqui. Grátis e legais: France 24, TV5MONDE, ARTE. Pago: o pack France TV da MEO (France 2, 3, 5).</string>
+    <string name="ok_retry">OK: tentar de novo · Voltar: regressar</string>
+    <string name="ok_external">OK: abrir no %s · Voltar: regressar</string>
+    <string name="no_audio_codec">Som não suportado por esta TV (%s)</string>
+    <string name="no_video_codec">Imagem não suportada por esta TV (%s)</string>
+    <string name="kind_geo">bloqueado neste país</string>
+    <string name="kind_forbidden">acesso recusado</string>
+    <string name="kind_not_found">ligação morta</string>
+    <string name="kind_not_media">não é um vídeo</string>
+    <string name="kind_drm">protegido por DRM</string>
+    <string name="kind_codec">formato não suportado pela TV</string>
+    <string name="kind_server">servidor em baixo</string>
+    <string name="kind_timeout">não responde</string>
+    <string name="kind_network">servidor inacessível</string>
+    <string name="kind_local">sem ligação</string>
+    <string name="kind_other">erro de reprodução</string>
 
     <string name="current">atual</string>
     <string name="set_lang">Idioma</string>
@@ -97,11 +122,15 @@
     <string name="help_back">Voltar: regressar ao HUB</string>
     <string name="catalog_info">%d canais verificados</string>
     <string name="version">Versão</string>
-    <string name="set_unavailable">Não grátis ou bloqueado aqui</string>
-    <string name="un_rtp">RTP 1, RTP 2, SIC, TVI em direto</string>
-    <string name="un_rtp_v">nas apps RTP Play, OPTO, TVI Player</string>
-    <string name="un_fr">TF1, France 2, M6 em direto</string>
-    <string name="un_fr_v">bloqueados fora de França</string>
+    <string name="set_unavailable">Onde ver em direto</string>
+    <string name="un_sic">SIC em direto</string>
+    <string name="un_sic_v">OPTO Premium, pago</string>
+    <string name="un_rtp">RTP 1, RTP 2, RTP 3 em direto</string>
+    <string name="un_rtp_v">grátis na RTP Play</string>
+    <string name="un_tvi">TVI em direto</string>
+    <string name="un_tvi_v">canais verificados e TVI Player</string>
+    <string name="un_fr">TF1, M6, France 2 em direto</string>
+    <string name="un_fr_v">sem direto grátis e legal a partir de Portugal: France 24, TV5MONDE, ARTE grátis, pack France TV da MEO pago (France 2, 3, 5)</string>
     <string name="un_paid">Sport TV, DAZN, Eleven</string>
     <string name="un_paid_v">assinatura paga</string>
 

@@ -17,4 +17,18 @@ class PlaylistRefreshPolicyTest {
         assertTrue(playlistCacheExpired(0L, 11 * hour))
         assertTrue(playlistCacheExpired(20 * hour, 11 * hour))
     }
+
+    @Test fun emptyOrTruncatedDownloadKeepsTheLastGoodList() {
+        assertTrue(keepOldPlaylist(0, 900))
+        assertTrue(keepOldPlaylist(0, 0))
+        assertTrue(keepOldPlaylist(449, 900))
+        assertFalse(keepOldPlaylist(450, 900))
+        assertFalse(keepOldPlaylist(1200, 900))
+        assertFalse(keepOldPlaylist(10, 0)) // first download
+    }
+
+    @Test fun aListThatReallyShrankIsTakenOnRefreshOrOnceTheCopyIsOld() {
+        assertFalse(keepOldPlaylist(300, 900, force = true))
+        assertTrue(keepOldPlaylist(0, 900, force = true))
+    }
 }
