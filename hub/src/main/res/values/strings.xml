@@ -31,6 +31,8 @@
     <string name="app_rtp">RTP en direct et replay</string>
     <string name="app_tvi">TVI en direct et replay</string>
     <string name="app_opto">SIC en direct et replay</string>
+    <string name="app_france24">infos en continu</string>
+    <string name="app_tv5monde">chaînes francophones, direct et replay</string>
     <string name="app_rtve">TV espagnole</string>
     <string name="app_redbull">sports extrêmes</string>
     <string name="app_smarttube">YouTube sans pub</string>
@@ -70,6 +72,9 @@
     <string name="to_install">À installer</string>
     <string name="channels_count">%d chaînes</string>
     <string name="dead">Indisponible aujourd\'hui</string>
+    <string name="hint_geo">géo-bloqué</string>
+    <string name="hint_headers">en-têtes requis</string>
+    <string name="hint_sources">%d sources</string>
     <string name="fav_added">Ajouté aux favoris</string>
     <string name="fav_removed">Retiré des favoris</string>
     <string name="no_store">Play Store introuvable sur cette TV</string>
@@ -82,7 +87,27 @@
 
     <string name="opening">Ouverture de %s…</string>
     <string name="reconnecting">Connexion perdue, nouvel essai %1$d sur %2$d…</string>
-    <string name="play_error">%1$s : source indisponible (%2$s).\nOK : réessayer · Retour : revenir</string>
+    <string name="switching">Source %1$d ne répond pas (%2$s), essai de la source %3$d/%4$d…</string>
+    <string name="waiting_network">%s : pas de connexion. La lecture reprend dès le retour du réseau.\nOK : réessayer · Retour : revenir</string>
+    <string name="play_error">%1$s : %2$s (%3$s).</string>
+    <string name="all_failed">Les %d sources connues ont échoué.</string>
+    <string name="no_alternative">Aucune autre source connue pour cette chaîne.</string>
+    <string name="rights_fr">Pas de direct gratuit et légal depuis le Portugal : %s ne diffuse pas cette chaîne ici. Gratuits et légaux : France 24, TV5MONDE, ARTE. Payant : le pack France TV de MEO (France 2, 3, 5).</string>
+    <string name="ok_retry">OK : réessayer · Retour : revenir</string>
+    <string name="ok_external">OK : ouvrir dans %s · Retour : revenir</string>
+    <string name="no_audio_codec">Son non lu par cette TV (%s)</string>
+    <string name="no_video_codec">Image non lue par cette TV (%s)</string>
+    <string name="kind_geo">bloqué dans ce pays</string>
+    <string name="kind_forbidden">accès refusé</string>
+    <string name="kind_not_found">lien mort</string>
+    <string name="kind_not_media">pas une vidéo</string>
+    <string name="kind_drm">protégé par DRM</string>
+    <string name="kind_codec">format non lu par la TV</string>
+    <string name="kind_server">serveur en panne</string>
+    <string name="kind_timeout">ne répond pas</string>
+    <string name="kind_network">serveur injoignable</string>
+    <string name="kind_local">pas de connexion</string>
+    <string name="kind_other">erreur de lecture</string>
 
     <string name="current">actuel</string>
     <string name="set_lang">Langue</string>
@@ -105,11 +130,15 @@
     <string name="help_back">Retour : revenir au HUB</string>
     <string name="catalog_info">%d chaînes vérifiées</string>
     <string name="version">Version</string>
-    <string name="set_unavailable">Pas gratuit ou bloqué ici</string>
-    <string name="un_rtp">RTP 1, RTP 2, SIC, TVI en direct</string>
-    <string name="un_rtp_v">dans RTP Play, OPTO, TVI Player</string>
-    <string name="un_fr">TF1, France 2, M6 en direct</string>
-    <string name="un_fr_v">bloqués hors de France</string>
+    <string name="set_unavailable">Où regarder le direct</string>
+    <string name="un_sic">SIC en direct</string>
+    <string name="un_sic_v">OPTO Premium, payant</string>
+    <string name="un_rtp">RTP 1, RTP 2, RTP 3 en direct</string>
+    <string name="un_rtp_v">gratuit dans RTP Play</string>
+    <string name="un_tvi">TVI en direct</string>
+    <string name="un_tvi_v">chaînes vérifiées et TVI Player</string>
+    <string name="un_fr">TF1, M6, France 2 en direct</string>
+    <string name="un_fr_v">pas de direct gratuit et légal depuis le Portugal : France 24, TV5MONDE, ARTE gratuits, pack France TV de MEO payant (France 2, 3, 5)</string>
     <string name="un_paid">Sport TV, DAZN, Eleven</string>
     <string name="un_paid_v">abonnement payant</string>
 

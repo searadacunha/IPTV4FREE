@@ -12,6 +12,7 @@ on:
       - 'iptv/**'
       - 'iptv-tv-preview/**'
       - '.github/workflows/iptv4free-tests.yml'
+  workflow_dispatch:
 permissions:
   contents: read
 
@@ -45,8 +46,8 @@ jobs:
       - name: Test and package the preserved Kodi TV preview
         working-directory: iptv-tv-preview
         run: |
-          python -m pip install pytest pillow
-          python -m pytest -q tests/test_tv_ui.py tests/test_android_launcher.py
+          python -m pip install -e ".[dev]"
+          python -m pytest -q
           python scripts/build_addon.py
           python - <<'PY'
           from pathlib import Path

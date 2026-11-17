@@ -78,8 +78,14 @@ class CardPresenter : Presenter() {
     }
 
     private fun subtitle(c: Context, i: Item): String = when (i) {
-        is Channel -> if (Store.isDead(i.url)) c.getString(R.string.dead)
-            else listOf(i.quality.substringBefore(' '), i.group.substringBefore(';'), i.source).filter { it.isNotEmpty() }.joinToString(" · ")
+        is Channel -> if (Store.isDead(i.url)) c.getString(R.string.dead) else {
+            val catalog = Catalog.all(c)
+            val sources = candidates(i, catalog, Playlists.loaded(Playlists.SOURCES.first { it.name == "M3UPT" })).size
+            val geo = i.geo && catalog.none { it.url == i.url } // a catalog channel played from here: the list's flag is about elsewhere
+            listOf(if (geo) c.getString(R.string.hint_geo) else "", if (i.headers) c.getString(R.string.hint_headers) else "",
+                if (sources > 1) c.getString(R.string.hint_sources, sources) else "",
+                i.quality.substringBefore(' '), i.group.substringBefore(';'), i.source).filter { it.isNotEmpty() }.joinToString(" · ")
+        }
         is App -> if (i.installedPackage(c.packageManager) != null) c.getString(i.terms.label) + " · " + c.getString(i.desc)
             else c.getString(R.string.to_install) + " · " + c.getString(i.terms.label)
         is Folder -> c.getString(R.string.channels_count, i.channels.size)

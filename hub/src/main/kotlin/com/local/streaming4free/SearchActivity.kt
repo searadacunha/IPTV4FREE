@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.fragment.app.FragmentActivity
 import androidx.leanback.app.SearchSupportFragment
 import androidx.leanback.widget.ArrayObjectAdapter
@@ -15,7 +16,6 @@ import androidx.leanback.widget.ListRow
 import androidx.leanback.widget.ListRowPresenter
 import androidx.leanback.widget.ObjectAdapter
 import androidx.leanback.widget.OnItemViewClickedListener
-import java.io.IOException
 import java.text.Normalizer
 
 /** One search over the hub's apps, the checked channels, the three public playlists, and a hand-off to YouTube. */
@@ -43,7 +43,7 @@ class SearchActivity : FragmentActivity() {
             if (b == null) setSearchQuery("", false) // opens on the keyboard; voice stays one press away (mic button)
             val app = requireContext().applicationContext
             for (s in Playlists.SOURCES) IO.execute { // so that the playlists can be searched too
-                try { Playlists.load(app, s) } catch (e: IOException) {}
+                try { Playlists.load(app, s) } catch (e: Exception) { Log.w(TAG, "search ${s.name}: $e") }
             }
         }
 
@@ -51,6 +51,11 @@ class SearchActivity : FragmentActivity() {
         @Suppress("DEPRECATION")
         override fun onActivityResult(request: Int, result: Int, data: Intent?) {
             if (request == 1 && result == android.app.Activity.RESULT_OK && data != null) setSearchQuery(data, true)
+        }
+
+        override fun onDestroyView() {
+            main.removeCallbacksAndMessages(null) // a pending search must not run on a detached fragment
+            super.onDestroyView()
         }
 
         override fun getResultsAdapter(): ObjectAdapter = results
@@ -68,6 +73,7 @@ class SearchActivity : FragmentActivity() {
         }
 
         private fun search(q: String) {
+            if (!isAdded) return
             query = q
             if (q.trim().length < 2) {
                 results.clear()
@@ -78,11 +84,15 @@ class SearchActivity : FragmentActivity() {
             val youtube = getString(R.string.search_youtube, q.trim())
             val titles = listOf(R.string.search_apps, R.string.search_catalog).map(::getString)
             IO.execute {
-                val pm = c.packageManager
                 val found = ArrayList<Pair<String, List<Item>>>()
-                found += titles[0] to APPS.filter { it.visible(pm) && norm(it.title).contains(n) }
-                found += titles[1] to Catalog.rows(c).flatMap { it.items }.filter { norm(it.title).contains(n) }.distinctBy { it.url }.take(60)
-                for (s in Playlists.SOURCES) found += s.name to Playlists.loaded(s).filter { norm(it.title).contains(n) }.take(60)
+                try {
+                    val pm = c.packageManager
+                    found += titles[0] to APPS.filter { it.visible(pm) && norm(it.title).contains(n) }
+                    found += titles[1] to Catalog.all(c).filter { norm(it.title).contains(n) }.distinctBy { it.url }.take(60)
+                    for (s in Playlists.SOURCES) found += s.name to Playlists.loaded(s).filter { norm(it.title).contains(n) }.take(60)
+                } catch (e: Exception) {
+                    Log.w(TAG, "search: $e")
+                }
                 found += "YouTube" to listOf(Channel(youtube, "https://www.youtube.com/results?search_query=" + Uri.encode(q.trim())))
                 main.post {
                     if (!isAdded || query != q) return@post

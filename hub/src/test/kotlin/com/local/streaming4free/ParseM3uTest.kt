@@ -39,6 +39,47 @@ class ParseM3uTest {
     }
 
     @Test
+    fun flagsGeoBlockedAndHeaderEntries() {
+        val list = parseM3u(sequenceOf(
+            "#EXTM3U",
+            "#EXTINF:-1 tvg-id=\"France2.fr\",France 2 Ⓖ",
+            "https://example.com/f2.m3u8",
+            "#EXTINF:-1 tvg-id=\"France3.fr@HD\",France 3 (720p) [Geo-blocked]",
+            "https://example.com/f3.m3u8",
+            "#EXTINF:-1,RTP 1",
+            "#EXTVLCOPT:http-user-agent=Mozilla/5.0",
+            "https://example.com/rtp1.m3u8",
+            "#EXTINF:-1 http-referrer=\"https://www.example.pt/\",RTP 2",
+            "https://example.com/rtp2.m3u8",
+            "#EXTINF:-1,Plain",
+            "https://example.com/plain.m3u8",
+        ), "Test")
+        assertEquals(listOf("France 2", "France 3 (720p)", "RTP 1", "RTP 2", "Plain"), list.map { it.title })
+        assertEquals(listOf(true, true, false, false, false), list.map { it.geo })
+        assertEquals(listOf(false, false, true, true, false), list.map { it.headers })
+    }
+
+    @Test
+    fun quotesInTheNameAndLicenceBeforeExtinf() {
+        val list = parseM3u(sequenceOf(
+            "#EXTM3U",
+            "#EXTINF:-1 tvg-id=\"mag.fr\" tvg-logo=\"https://example.com/l.png\",Le \"Mag\", édition HD",
+            "https://example.com/mag.m3u8",
+            "#KODIPROP:inputstream.adaptive.license_type=clearkey",
+            "#KODIPROP:inputstream.adaptive.license_key=0123:4567",
+            "#EXTINF:-1,Licence above",
+            "https://example.com/drm.mpd",
+            "#EXTINF:-1 tvg-id=\"next.fr\",Next",
+            "https://example.com/next.m3u8",
+            "#EXTINF:-1 tvg-name=\"No comma\"",
+            "https://example.com/nocomma.m3u8",
+        ), "Test")
+        assertEquals(listOf("Le \"Mag\", édition HD", "Next", "No comma"), list.map { it.title })
+        assertEquals("mag.fr", list[0].id)
+        assertEquals("https://example.com/l.png", list[0].logo)
+    }
+
+    @Test
     fun recognisesYouTubePages() {
         assertTrue(Channel("a", "https://www.youtube.com/c/franceinfo/live").isYouTube)
         assertTrue(Channel("a", "https://youtu.be/abc").isYouTube)

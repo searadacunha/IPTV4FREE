@@ -19,9 +19,31 @@ def test_parse_channels_plain_and_gzip():
 def test_match_order_alias_then_id_then_name():
     index = epg.parse_channels(EPG_XML)
     assert epg.match("Whatever", "Alpha.xx@SD", {}, index) == "Alpha.xx"
-    assert epg.match("Beta News (1080p)", "", {}, index) == "BetaNews.xx"
-    assert epg.match("Alpha", "Alpha.xx", {"alpha": "Forced.xx"}, index) == "Forced.xx"
+    assert epg.match("Whatever", "alpha.XX", {}, index) == "Alpha.xx"
+    assert epg.match("Beta News", "", {}, index) == "BetaNews.xx"
+    assert epg.match("Alpha", "Alpha.xx", {"alpha": "gamma.xx"}, index) == "Gamma.xx"
     assert epg.match("Nobody", "Nobody.xx", {}, index) is None
+
+
+def test_alias_to_an_id_missing_from_the_guide_is_ignored():
+    index = epg.parse_channels(EPG_XML)
+    assert epg.match("Alpha", "", {"alpha": "Renamed.xx"}, index) == "Alpha.xx"
+    assert epg.assign([("TFX", "", "")], {"TFX": "Missing.xx"}, index) == [None]
+
+
+def test_tvg_name_matches_display_name_with_spaces_or_underscores():
+    index = epg.parse_channels(EPG_XML)
+    assert epg.match("BN", "", {}, index, tvg_name="Beta News") == "BetaNews.xx"
+    assert epg.match("BN", "", {}, index, tvg_name="Beta_News") == "BetaNews.xx"
+    assert epg.match("Gamma TV", "", {}, index, tvg_name="Alpha") == "Alpha.xx"  # tvg-name before name
+
+
+def test_loose_name_match_never_gives_one_guide_to_two_channels():
+    index = epg.parse_channels(EPG_XML)
+    assert epg.match("Beta News (1080p)", "", {}, index) is None  # strict match only
+    assert epg.assign([("Beta News (1080p)", "", "")], {}, index) == ["BetaNews.xx"]
+    assert epg.assign([("Beta News (1080p)", "", ""), ("BETA-NEWS", "", "")], {}, index) == [None, None]
+    assert epg.assign([("Beta News", "", ""), ("Beta-News!", "", "")], {}, index) == ["BetaNews.xx", None]
 
 
 def _cache_file(cache_dir, url):

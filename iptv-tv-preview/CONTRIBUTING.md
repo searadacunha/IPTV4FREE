@@ -5,8 +5,8 @@ Bug reports and pull requests are welcome.
 ## Development setup
 
 ```bash
-git clone https://github.com/searadacunha/STREAMING4FREE-TV.git
-cd STREAMING4FREE-TV/iptv-tv-preview
+git clone https://github.com/searadacunha/IPTVnSTREAMING4FREE.git
+cd IPTVnSTREAMING4FREE/iptv-tv-preview
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 pytest

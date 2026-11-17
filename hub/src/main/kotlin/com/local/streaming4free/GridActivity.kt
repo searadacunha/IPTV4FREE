@@ -5,12 +5,12 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.fragment.app.FragmentActivity
 import androidx.leanback.app.VerticalGridSupportFragment
 import androidx.leanback.widget.ArrayObjectAdapter
 import androidx.leanback.widget.OnItemViewClickedListener
 import androidx.leanback.widget.VerticalGridPresenter
-import java.io.IOException
 
 /** All the channels of one playlist group. */
 class GridActivity : FragmentActivity() {
@@ -41,7 +41,7 @@ class GridActivity : FragmentActivity() {
             val app = requireContext().applicationContext
             val main = Handler(Looper.getMainLooper())
             IO.execute { // in memory when opened from the hub; read back from the TV's copy after Android closed the app
-                val channels = try { Playlists.folders(app, source).find { it.title == group }?.channels.orEmpty() } catch (e: IOException) { emptyList() }
+                val channels = try { Playlists.folders(app, source).find { it.title == group }?.channels.orEmpty() } catch (e: Exception) { Log.w(TAG, "grid ${source.name}: $e"); emptyList() }
                 main.post { if (isAdded) items.setItems(channels.ifEmpty { listOf(Setting("", getString(R.string.list_offline))) }, DIFF) }
             }
         }

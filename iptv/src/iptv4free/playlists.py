@@ -1,11 +1,13 @@
 """M3U parsing and rendering, and how Kodi's IPTV Simple Client will see each entry."""
 from __future__ import annotations
 
+import re
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 # Attribute order used when writing playlists, so output is byte-for-byte deterministic.
 ATTR_ORDER = ("tvg-id", "tvg-chno", "tvg-name", "tvg-logo", "group-title")
+BROWSER_AGENT = re.compile(r"mozilla|chrome/|safari/|firefox/|\bedge?/|applewebkit|gecko", re.IGNORECASE)
 
 
 @dataclass
@@ -160,6 +162,37 @@ def effective_url(entry: Entry) -> str:
         elif f"{header}=" not in url[pipe + 1:]:
             url = f"{url}&{header}={value}"
     return url
+
+
+def _without_browser_agent(options: str) -> str:
+    """'user-agent=Mozilla/...&referer=x' -> 'referer=x'."""
+    return "&".join(o for o in options.split("&") if not (
+        o.partition("=")[0].strip().lower() == "user-agent"
+        and BROWSER_AGENT.search(urllib.request.unquote(o))))
+
+
+def drop_browser_agent(entry: Entry) -> Entry:
+    """Remove browser user agents declared by a list: Kodi is never disguised as a browser.
+
+    Other user agents, referrers and options are kept, so the scanner and Kodi send the
+    same headers (Kodi's own user agent when none is left).
+    """
+    options = []
+    for line in entry.options:
+        tag, _, prop = line.partition(":")
+        name, _, value = prop.partition("=")
+        key = name.strip().lower()
+        if key == "http-user-agent" and BROWSER_AGENT.search(value):
+            continue
+        if key.endswith("_headers"):  # inputstream.adaptive.{manifest,stream}_headers
+            kept = _without_browser_agent(value)
+            if not kept:
+                continue
+            line = f"{tag}:{name}={kept}"
+        options.append(line)
+    url, sep, pipe = entry.url.partition("|")
+    pipe = _without_browser_agent(pipe) if sep else ""
+    return replace(entry, url=f"{url}|{pipe}" if pipe else url, options=options)
 
 
 def kodi_identity(entry: Entry) -> str:

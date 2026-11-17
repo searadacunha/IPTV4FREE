@@ -72,8 +72,8 @@ See the **[Kodi interface & installation guide](iptv-tv-preview/docs/IPTV4FREE-T
 Run the playlist-management CLI on your computer. Configure your own sources before scanning or deploying.
 
 ```bash
-git clone https://github.com/searadacunha/STREAMING4FREE-TV.git
-cd STREAMING4FREE-TV/iptv
+git clone https://github.com/searadacunha/IPTVnSTREAMING4FREE.git
+cd IPTVnSTREAMING4FREE/iptv
 
 python3 -m venv .venv
 source .venv/bin/activate

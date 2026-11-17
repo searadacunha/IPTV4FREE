@@ -9,8 +9,8 @@ android {
         applicationId = "com.local.streaming4free"
         minSdk = 23
         targetSdk = 34 // same as WATCHED and CINEFUSE TV
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
     buildTypes {
         release {

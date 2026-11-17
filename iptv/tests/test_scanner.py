@@ -13,7 +13,7 @@ def test_probe_outcomes(http_server):
         "/v/index.m3u8": (True, "HLS segment"),
         "/direct.ts": (True, "direct stream"),
         "/dash.mpd": (True, "DASH"),
-        "/tiny.ts": (False, "direct stream, 10 bytes"),
+        "/tiny.ts": (False, "direct stream: text instead of video"),
         "/missing.m3u8": (False, "HTTPError"),
         "/empty.m3u8": (False, "without segments"),
         "/nomaster.m3u8": (False, "without variants"),

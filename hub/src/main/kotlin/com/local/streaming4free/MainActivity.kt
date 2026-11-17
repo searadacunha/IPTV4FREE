@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -17,7 +18,6 @@ import androidx.leanback.widget.ListRow
 import androidx.leanback.widget.ListRowPresenter
 import androidx.leanback.widget.OnItemViewClickedListener
 import androidx.leanback.widget.PageRow
-import java.io.IOException
 
 class MainActivity : FragmentActivity() {
     override fun attachBaseContext(base: Context) = super.attachBaseContext(Store.localized(base))
@@ -167,7 +167,7 @@ class PageFragment : RowsSupportFragment() {
         val app = requireContext().applicationContext
         val offline = getString(R.string.list_offline)
         IO.execute {
-            val result: List<Item> = try { load(app) } catch (e: IOException) { listOf(Setting("", offline)) }
+            val result: List<Item> = try { load(app) } catch (e: Exception) { Log.w(TAG, "row $title: $e"); listOf(Setting("", offline)) }
             main.post { if (isAdded) items.setItems(result.ifEmpty { listOf(Setting("", offline)) }, DIFF) }
         }
     }
@@ -194,7 +194,9 @@ class PageFragment : RowsSupportFragment() {
                 Setting("", getString(R.string.version), c.packageManager.getPackageInfo(c.packageName, 0).versionName.orEmpty()))
         }
         row(R.string.set_unavailable) {
-            listOf(Setting("", getString(R.string.un_rtp), getString(R.string.un_rtp_v)),
+            listOf(Setting("", getString(R.string.un_sic), getString(R.string.un_sic_v)),
+                Setting("", getString(R.string.un_rtp), getString(R.string.un_rtp_v)),
+                Setting("", getString(R.string.un_tvi), getString(R.string.un_tvi_v)),
                 Setting("", getString(R.string.un_fr), getString(R.string.un_fr_v)),
                 Setting("", getString(R.string.un_paid), getString(R.string.un_paid_v)))
         }
@@ -209,7 +211,7 @@ class PageFragment : RowsSupportFragment() {
                 Toast.makeText(a, R.string.loading, Toast.LENGTH_SHORT).show()
                 val app = a.applicationContext
                 IO.execute {
-                    val ok = Playlists.SOURCES.count { src -> try { Playlists.folders(app, src, true); true } catch (e: IOException) { false } }
+                    val ok = Playlists.SOURCES.count { src -> try { Playlists.folders(app, src, true); true } catch (e: Exception) { Log.w(TAG, "refresh ${src.name}: $e"); false } }
                     main.post { Toast.makeText(app, app.getString(R.string.refresh_done, ok, Playlists.SOURCES.size), Toast.LENGTH_LONG).show() }
                 }
             }

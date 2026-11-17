@@ -50,6 +50,7 @@ jobs:
           ( cd hub && ./gradlew --no-daemon testDebugUnitTest assembleRelease )
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify hub/build/outputs/apk/release/streaming4free-hub-release.apk
           python3 tools/probe_streams.py --help > /dev/null  # runs the probe's own self-check
+          python3 -m unittest discover -s tools/tests -p 'test_*.py' -v
           python3 - <<'PY'
           import json, re
           from pathlib import Path
