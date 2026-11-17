@@ -8,7 +8,7 @@
   Validate streams, curate channels, deploy safely, and enjoy a dedicated TV interface.</p>
 
   <p>
-    <a href="https://github.com/searadacunha/STREAMING4FREE-TV/actions/workflows/iptv4free-tests.yml"><img src="https://github.com/searadacunha/STREAMING4FREE-TV/actions/workflows/iptv4free-tests.yml/badge.svg" alt="Tests" /></a>
+    <a href="https://github.com/searadacunha/IPTVnSTREAMING4FREE/actions/workflows/iptv4free-tests.yml"><img src="https://github.com/searadacunha/IPTVnSTREAMING4FREE/actions/workflows/iptv4free-tests.yml/badge.svg" alt="Tests" /></a>
     <img src="https://img.shields.io/badge/Python-3.11%2B-2563eb" alt="Python 3.11+" />
     <img src="https://img.shields.io/badge/Kodi-PVR-172b50" alt="Kodi PVR" />
     <img src="https://img.shields.io/badge/Android-TV-172b50" alt="Android TV" />
@@ -68,8 +68,8 @@ The Kodi ZIP is served locally for installation using the included range-aware s
 Run the playlist-management toolkit on macOS or Linux. The computer and Android TV must be reachable on the same network via ADB.
 
 ```bash
-git clone https://github.com/searadacunha/STREAMING4FREE-TV.git
-cd STREAMING4FREE-TV/iptv
+git clone https://github.com/searadacunha/IPTVnSTREAMING4FREE.git
+cd IPTVnSTREAMING4FREE/iptv
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .

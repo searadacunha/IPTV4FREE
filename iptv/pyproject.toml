@@ -25,7 +25,7 @@ dev = ["pytest>=8"]
 iptv4free = "iptv4free.cli:main"
 
 [project.urls]
-Source = "https://github.com/searadacunha/STREAMING4FREE-TV"
+Source = "https://github.com/searadacunha/IPTVnSTREAMING4FREE"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

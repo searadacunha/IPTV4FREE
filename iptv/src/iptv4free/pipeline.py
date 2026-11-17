@@ -16,7 +16,8 @@ from typing import Callable
 from . import epg, scanner
 from .channels import LineupReport, build_lineup, validate
 from .config import Config, Lineup
-from .playlists import Entry, effective_url, fetch_text, parse_m3u, render_m3u, request_parts
+from .playlists import (Entry, drop_browser_agent, effective_url, fetch_text, parse_m3u, render_m3u,
+                        request_parts)
 from .updates import NumberBook, ScanHistory, atomic_write
 
 log = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ def lineup_entries(config: Config, lineup: Lineup) -> list[Entry]:
         result = parse_m3u(snap.read_text(encoding="utf-8"))
         if result.skipped:
             log.info("%s: %d malformed lines skipped", url, len(result.skipped))
-        entries.extend(result.entries)
+        entries.extend(map(drop_browser_agent, result.entries))
     return entries
 
 

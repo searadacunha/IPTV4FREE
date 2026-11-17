@@ -102,7 +102,10 @@ def build_lineup(lineup: Lineup, entries: list[Entry], config: Config,
     out: list[Entry] = []
     first_free = lineup.first_number + len(lineup.favorites)
     used_urls |= consumed
-    for _, fav, bucket, mkey, tvg_base, e in rows:
+    guides = (epg.assign([(r[-1].name, r[-1].attrs.get("tvg-id", ""), r[-1].attrs.get("tvg-name", ""))
+                          for r in rows], lineup.epg_aliases, epg_index)
+              if epg_index else [None] * len(rows))
+    for (_, fav, bucket, mkey, tvg_base, e), guide in zip(rows, guides):
         groups = [f"{lineup.name} · {config.favorites_label}"] if fav is not None else []
         groups.append(f"{lineup.name} · {bucket}" if lineup.by_category
                       else f"{lineup.name} · {config.all_label}")
@@ -110,8 +113,6 @@ def build_lineup(lineup: Lineup, entries: list[Entry], config: Config,
                   else numbers.assign(lineup.id, f"{mkey}|{tvg_base}", first_free))
         if next_first_number is not None and number >= next_first_number:
             rep.numbering_overflow = True
-        guide = (epg.match(e.name, e.attrs.get("tvg-id", ""), lineup.epg_aliases, epg_index)
-                 if epg_index else None)
         rep.with_epg += guide is not None
         attrs = {"tvg-id": guide or e.attrs.get("tvg-id", ""), "tvg-chno": str(number),
                  "tvg-logo": e.attrs.get("tvg-logo", ""), "group-title": ";".join(groups)}

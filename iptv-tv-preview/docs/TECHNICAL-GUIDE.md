@@ -101,8 +101,8 @@ previous one stored, so a failed step never leaves the TV half-updated.
 ## Quick start
 
 ```bash
-git clone https://github.com/searadacunha/STREAMING4FREE-TV.git
-cd STREAMING4FREE-TV/iptv-tv-preview
+git clone https://github.com/searadacunha/IPTVnSTREAMING4FREE.git
+cd IPTVnSTREAMING4FREE/iptv-tv-preview
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e .
 
@@ -371,6 +371,42 @@ measured threshold.
 | TV interface: a channel shows "Lecture impossible" | The stream did not open (offline or geo-blocked). Kodi's log says why; the next scans remove dead streams. |
 
 Logs: `~/.local/state/iptv4free/iptv4free.log`; `-v` prints debug output.
+
+## Fiabilité des chaînes / Channel reliability
+
+Measured on 2026-11-17 from a home connection in Portugal, the TV's network, with no VPN or
+proxy:
+
+- **RTP 1, RTP 2, RTP 3.** `streaming-live.rtp.pt` answers HTTP 204 with an empty body to
+  the Kodi user agent (short and full form) and to ffmpeg's (`Lavf`), while it serves the
+  same streams to Android and ExoPlayer user agents. IPTV Simple cannot play them without
+  disguising Kodi as another player, which IPTV4FREE never does. `scan` reports them as
+  "empty (server refuses this player)". Watch them in the STREAMING4FREE hub (Media3) or in
+  the free RTP Play app.
+- **TF1, TMC, M6, France 2 to France 5.** There is no legal free live stream of these
+  channels from Portugal: TF1+ is limited to France, Belgium, Luxembourg and Switzerland,
+  M6+ to France, Monaco and Andorra, and france.tv restricts its live channels abroad by
+  rights. Legal alternatives: France 24, TV5MONDE and ARTE (free), or the paid MEO Pack
+  France TV. IPTV4FREE does not bypass geo-blocking, tokens or DRM.
+- **One source per channel in Kodi.** IPTV Simple keeps one URL per channel, and its
+  `useFFmpegReconnect` setting is computed but never used in 21.11.0 Omega (dead code). When
+  a source fails, Kodi does not try another one: automatic fallback between sources is done
+  by the STREAMING4FREE hub, not by Kodi.
+
+What the toolkit does about it:
+
+- `scan` counts a stream as alive only when its bytes are media (MPEG-TS, fMP4, ADTS or ID3
+  audio, MPEG-PS; AES-128 HLS segments by size). An HTML, JSON or text page answered with
+  HTTP 200 is reported as such. Gzip playlists are decoded. For an HLS master, the
+  highest-bandwidth video variant is tried first, then at most two lower ones; audio-only
+  variants are skipped, and a 403 or a timeout stops the tries on that host.
+- A browser user agent declared by a source list (`Mozilla/...`, Chrome, Safari, Firefox,
+  Edge) is dropped before scan and build, so Kodi keeps its own user agent and `scan` sends
+  exactly what Kodi will send. Other user agents and referrers are kept.
+- Guide ids follow IPTV Simple's order: an `epg_aliases` id that exists in the guide, then
+  `tvg-id`, then a display name equal to `tvg-name` (spaces or underscores) or to the
+  channel name. A looser name match is used only when no other channel of the lineup gets
+  that guide id, and an alias to an id missing from the guide is not counted "with EPG".
 
 ## Limitations
 

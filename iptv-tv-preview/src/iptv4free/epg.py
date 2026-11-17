@@ -14,6 +14,7 @@ import time
 import unicodedata
 import urllib.request
 import xml.etree.ElementTree as ET
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -32,6 +33,7 @@ def match_key(name: str) -> str:
 class EpgIndex:
     ids: dict[str, str] = field(default_factory=dict)    # lowercased id -> id
     names: dict[str, str] = field(default_factory=dict)  # match_key(display-name) -> id
+    display: dict[str, str] = field(default_factory=dict)  # lowercased display-name -> id
 
     def __len__(self) -> int:
         return len(self.ids)
@@ -51,6 +53,8 @@ def parse_channels(data: bytes) -> EpgIndex:
         if cid:
             index.ids.setdefault(cid.lower(), cid)
             for dn in elem.iter("display-name"):
+                if dn.text and dn.text.strip():
+                    index.display.setdefault(dn.text.strip().lower(), cid)
                 if dn.text and match_key(dn.text):
                     index.names.setdefault(match_key(dn.text), cid)
         elem.clear()
@@ -87,13 +91,30 @@ def load_index(url: str, cache_dir: Path, max_age_hours: float, timeout: float,
         return None
 
 
-def match(name: str, tvg_id: str, aliases: dict[str, str], index: EpgIndex) -> str | None:
-    """Guide id for a channel: explicit alias, then tvg-id, then display name."""
-    key = match_key(name)
-    alias = {match_key(k): v for k, v in aliases.items()}.get(key)
-    if alias:
-        return alias
-    base = tvg_id.split("@")[0].strip().lower()  # iptv-org ids carry a feed suffix: "TF1.fr@SD"
-    if base and base in index.ids:
-        return index.ids[base]
-    return index.names.get(key)
+def match(name: str, tvg_id: str, aliases: dict[str, str], index: EpgIndex,
+          tvg_name: str = "") -> str | None:
+    """Guide id the way IPTV Simple finds it, no fuzzy name: an alias whose id is in the guide,
+    tvg-id, then a display-name equal to tvg-name or to the channel name (case ignored)."""
+    alias = {match_key(k): v for k, v in aliases.items()}.get(match_key(name), "")
+    base = tvg_id.split("@")[0]  # iptv-org ids carry a feed suffix: "TF1.fr@SD"
+    for cid in (alias, tvg_id, base):
+        if cid.strip().lower() in index.ids:
+            return index.ids[cid.strip().lower()]
+    for label in (tvg_name, tvg_name.replace("_", " "), name):
+        if label.strip().lower() in index.display:
+            return index.display[label.strip().lower()]
+    return None
+
+
+def assign(channels: list[tuple[str, str, str]], aliases: dict[str, str],
+           index: EpgIndex) -> list[str | None]:
+    """Guide id for each (name, tvg-id, tvg-name) of a lineup.
+
+    A loose name match (accents, case, punctuation, quality tags ignored) is used only for
+    a guide id that no other channel of the lineup gets, so two channels never share a
+    guide through a guess.
+    """
+    exact = [match(n, i, aliases, index, tn) for n, i, tn in channels]
+    loose = [None if g else index.names.get(match_key(n)) for g, (n, _, _) in zip(exact, channels)]
+    taken = Counter(g for g in exact + loose if g)
+    return [g or (f if f and taken[f] == 1 else None) for g, f in zip(exact, loose)]
