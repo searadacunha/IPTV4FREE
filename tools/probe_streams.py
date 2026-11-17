@@ -2,15 +2,18 @@
 """Probes the public IPTV playlists from this network and builds the hub's curated catalog.
 
 Each candidate stream is opened the way the hub's player opens it (plain GET, platform user agent, no
-Referer/Origin, no DRM key): playlist, best variant up to 1080p, then the first bytes of a media segment.
-Only streams that answer from here end up in the catalog, so run it from the network the TV uses.
+Referer/Origin, no DRM key): playlist, best video variant up to 1080p (then at most the next ones when it fails),
+then the first bytes of a media segment, which must be audio/video data, not a page (an AES-128 one: binary, not
+text; its key is not fetched). DASH is checked on the manifest only. Only streams that answer from here end up in the
+catalog, so run it from the network the TV uses. Each catalog channel also keeps up to 3 other working streams of the
+same channel (same tvg-id, quality feeds such as @SD and @HD merged) as fallbacks.
 
     python3 tools/probe_streams.py            # download, probe, write the catalog and the report
     python3 tools/probe_streams.py --reuse    # rebuild the outputs from the last probe (no network)
 
 Writes hub/src/main/assets/catalog.json and docs/SOURCES.md. Standard library only.
 """
-import argparse, collections, concurrent.futures, datetime, ipaddress, json, re, sys, threading, urllib.parse, urllib.request
+import argparse, collections, concurrent.futures, datetime, ipaddress, json, re, sys, threading, urllib.parse, urllib.request, zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -29,18 +32,34 @@ THEMES = {"Sports": "sport", "Documentary": "docs", "Science": "docs", "Outdoor"
           "Movies": "movies", "Classic": "movies", "Series": "series"}  # iptv-org category -> hub category
 LIVE_ROWS = {"Kids": "kids", "Animation": "kids", "Family": "kids", "Music": "music", "News": "news"}
 TIMEOUT = 8
+WS = b"\xef\xbb\xbf \r\n\t"
+VIDEO = re.compile(r"avc1|avc3|hvc1|hev1|vp09|av01|mp4v")
+THROTTLED = {"HTTP403", "VARIANT0", "SEGMENT0", "VARIANT429", "SEGMENT429"}  # timeouts, refusals, rate limits
+LIMIT = 262144  # bytes read from a playlist
 
 
-def fetch(url, limit=262144):
+def fetch(url, limit=LIMIT):
     """GET like the hub: returns (status, final_url, content_type, first bytes)."""
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*", "Accept-Encoding": "gzip"})
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-            return r.status, r.geturl(), r.headers.get("Content-Type", ""), r.read(limit)
+            body = r.read(limit)
+            if r.headers.get("Content-Encoding", "").lower() == "gzip":
+                try:  # only when declared, like Media3; a truncated read still inflates up to the limit
+                    body = zlib.decompressobj(31).decompress(body, limit)
+                except zlib.error:
+                    pass  # declared gzip but is not: keep the raw bytes for the sniffers
+            return r.status, r.geturl(), r.headers.get("Content-Type", ""), body
     except urllib.error.HTTPError as e:
         return e.code, url, "", b""
     except Exception as e:  # DNS, timeout, TLS, refused...
         return 0, url, type(e).__name__, b""
+
+
+def playlist(body):
+    """Playlist text; a body cut at the read limit loses its last line, which may be a partial URI."""
+    text = body.decode("utf-8", "replace")
+    return text.rsplit("\n", 1)[0] if len(body) >= LIMIT else text
 
 
 def parse_m3u(text, source):
@@ -63,30 +82,55 @@ def parse_m3u(text, source):
     return out
 
 
+def media(ctype, body):
+    """'TS', 'MP4', 'PS' or 'AAC' when the first bytes are audio/video; None for a page, JSON, a playlist or anything else."""
+    if ctype.lower().startswith(("text/html", "application/json")):
+        return None
+    if body[:3] == b"ID3" and len(body) >= 10:  # timed metadata ahead of the media (packed audio, some TS)
+        body = body[10 + ((body[6] & 127) << 21 | (body[7] & 127) << 14 | (body[8] & 127) << 7 | body[9] & 127):]
+    if len(body) >= 188 and body[0] == 0x47 and body[188:189] in (b"G", b""):
+        return "TS"
+    if body[4:8] in (b"ftyp", b"styp", b"moof", b"sidx", b"moov", b"emsg", b"prft"):
+        return "MP4"
+    if body[:4] == b"\0\0\1\xba":
+        return "PS"
+    if len(body) > 1 and body[0] == 0xFF and body[1] & 0xF6 == 0xF0:
+        return "AAC"
+    return None
+
+
 def probe(url):
     """Returns a dict: status ('OK' or a failure class), detail, and quality when the playlist tells it."""
     host = urllib.parse.urlsplit(url).hostname or ""
     if re.search(r"(^|\.)(youtube\.com|youtu\.be)$", host):
         return {"status": "YOUTUBE", "detail": "opened by the YouTube app"}
     code, final, ctype, body = fetch(url)
+    if code == 204 or code == 200 and not body:  # RTP answers 204 to some user agents
+        return {"status": "EMPTY", "detail": f"HTTP {code} without a body"}
     if code != 200:
         return {"status": {403: "HTTP403", 451: "HTTP403", 404: "HTTP404", 0: "UNREACHABLE"}.get(code, "HTTP" + str(code)), "detail": ctype or str(code)}
-    head = body[:2048].lstrip(b"\xef\xbb\xbf \r\n\t")
+    head = body[:2048].lstrip(WS)
     if head.startswith(b"#EXTM3U"):
-        return probe_hls(final, body.decode("utf-8", "replace"))
+        return probe_hls(final, playlist(body))
     if b"<MPD" in body[:4096]:
         if b"ContentProtection" in body:
             return {"status": "DRM", "detail": "DASH with ContentProtection"}
         return {"status": "OK", "detail": "DASH manifest (segments not fetched)"}
-    if ctype.startswith(("video/", "audio/", "application/octet-stream")) or head[:1] == b"G":
-        return {"status": "OK", "detail": "direct " + (ctype or "MPEG-TS")}
-    return {"status": "WEBPAGE", "detail": ctype[:40]}
+    kind = media(ctype, body)
+    if kind == "AAC":
+        return {"status": "AUDIO", "detail": "direct audio-only stream"}
+    if kind:
+        return {"status": "OK", "detail": "direct " + kind}
+    return {"status": "WEBPAGE", "detail": ctype[:40] or "not audio or video data"}
 
 
 def probe_hls(base, text, depth=0):
-    """Check a real segment, falling back to lower HLS variants if the best one fails."""
+    """Check a real segment, falling back to lower video variants if the best one fails."""
     variants = re.findall(r"#EXT-X-STREAM-INF:([^\n]*)\n(?:#[^\n]*\n)*([^#\n][^\n]*)", text)
-    if variants and depth == 0:
+    if variants:
+        if depth > 1:
+            return {"status": "VARIANT_FORMAT", "detail": "master playlist nested twice"}
+
         def height(v):
             m = re.search(r"RESOLUTION=\d+x(\d+)", v[0])
             return int(m.group(1)) if m else 0
@@ -95,50 +139,76 @@ def probe_hls(base, text, depth=0):
             m = re.search(r"[^-]BANDWIDTH=(\d+)", "," + v[0])
             return int(m.group(1)) if m else 0
 
-        fit = [v for v in variants if height(v) <= 1080] or variants
-        candidates = sorted(fit, key=lambda v: (height(v), rate(v)), reverse=True)
-        failure = {"status": "VARIANT0", "detail": "no playable variant"}
-        for variant in candidates:
-            codecs = re.search(r'CODECS="([^"]*)"', variant[0])
-            quality = " ".join(filter(None, [
-                f"{height(variant)}p" if height(variant) else "",
-                codecs.group(1) if codecs else "",
-            ]))
-            code, final, ctype, body = fetch(urllib.parse.urljoin(base, variant[1].strip()))
-            if code != 200:
-                failure = {"status": "HTTP403" if code in (403, 451) else "VARIANT" + str(code),
-                           "detail": "variant playlist", "quality": quality}
-                continue
-            if not body.lstrip(b"\xef\xbb\xbf \r\n\t").startswith(b"#EXTM3U"):
-                failure = {"status": "VARIANT_FORMAT", "detail": "not an HLS playlist", "quality": quality}
-                continue
-            result = probe_hls(final, body.decode("utf-8", "replace"), 1)
-            result["quality"] = quality
+        def codecs(v):
+            m = re.search(r'CODECS="([^"]*)"', v[0])
+            return m.group(1) if m else ""
+
+        video = [v for v in variants if not codecs(v) or VIDEO.search(codecs(v))]
+        if any(height(v) or codecs(v) for v in video):  # siblings describe their video: one that declares nothing is audio
+            video = [v for v in video if height(v) or codecs(v)]
+        if not video:
+            return {"status": "AUDIO", "detail": "audio-only renditions"}
+        fit = [v for v in video if height(v) <= 1080] or video
+        failure, wary, retried = None, None, False
+        for variant in sorted(fit, key=lambda v: (height(v), rate(v)), reverse=True):
+            url = urllib.parse.urljoin(base, variant[1].strip())
+            host = urllib.parse.urlsplit(url).hostname
+            if host == wary:
+                if retried:
+                    continue
+                retried = True
+            code, final, ctype, body = fetch(url)
+            if code in (403, 451):
+                result = {"status": "HTTP403", "detail": "variant playlist"}
+            elif code == 204 or code == 200 and not body:
+                result = {"status": "EMPTY", "detail": "variant playlist without a body"}
+            elif code != 200:
+                result = {"status": "VARIANT" + str(code), "detail": "variant playlist"}
+            elif not body.lstrip(WS).startswith(b"#EXTM3U"):
+                result = {"status": "VARIANT_FORMAT", "detail": "not an HLS playlist"}
+            else:
+                result = probe_hls(final, playlist(body), depth + 1)
+            result.setdefault("quality", " ".join(filter(None, [f"{height(variant)}p" if height(variant) else "", codecs(variant)])))
             if result["status"] == "OK":
                 return result
-            failure = result
+            if failure is None:
+                failure = result
+                if result["status"] in THROTTLED:  # do not hammer a host that refuses or rate-limits: one more variant there at most
+                    wary = host
         return failure
 
-    key = re.search(r"#EXT-X-KEY:METHOD=([A-Z0-9-]+)([^\n]*)", text)
-    if key and key.group(1) not in ("NONE", "AES-128"):
-        return {"status": "DRM", "detail": "HLS " + key.group(1)}
+    keys = re.findall(r"#EXT-X-KEY:[^\n]*?METHOD=([A-Z0-9-]+)", text)
+    drm = [k for k in keys if k not in ("NONE", "AES-128")]
+    if drm:
+        return {"status": "DRM", "detail": "HLS " + drm[0]}
     segments = [l.strip() for l in text.splitlines() if l.strip() and not l.startswith("#")]
     if not segments:
         return {"status": "EMPTY", "detail": "playlist without segments"}
     code, _, ctype, body = fetch(urllib.parse.urljoin(base, segments[-1]), 32768)
-    if code != 200 or len(body) < 188:
-        return {"status": "HTTP403" if code in (403, 451) else "SEGMENT" + str(code),
-                "detail": "media segment"}
-    head = body[:256].lstrip(b"\xef\xbb\xbf \r\n\t").lower()
-    if ctype.lower().startswith(("text/html", "application/json")) or head.startswith(
-        (b"<!doctype html", b"<html", b"<?xml", b'{"error"', b'{"message"')
-    ):
+    if code == 204 or code == 200 and not body:
+        return {"status": "EMPTY", "detail": "media segment without a body"}
+    if code != 200:
+        return {"status": "HTTP403" if code in (403, 451) else "SEGMENT" + str(code), "detail": "media segment"}
+    if len(body) < 188:
+        return {"status": "SEGMENT_FORMAT", "detail": "media segment too short"}
+    if keys and keys[-1] == "AES-128":  # ciphertext cannot be sniffed: reject only what is plainly text or audio
+        if ctype.lower().startswith(("text/html", "application/json")) or all(b in b"\t\n\r" or 32 <= b < 127 for b in body[:64]):
+            return {"status": "SEGMENT_FORMAT", "detail": "server returned a page instead of media"}
+        if ctype.lower().startswith("audio/"):
+            return {"status": "AUDIO", "detail": "audio-only segments"}
+        return {"status": "OK", "detail": "HLS AES-128"}
+    kind = media(ctype, body)
+    if kind is None:
         return {"status": "SEGMENT_FORMAT", "detail": "server returned a page instead of media"}
-    return {"status": "OK", "detail": "HLS" + (" AES-128" if key and key.group(1) == "AES-128" else "")}
+    if kind == "AAC":
+        return {"status": "AUDIO", "detail": "audio-only segments"}
+    return {"status": "OK", "detail": "HLS " + kind}
 
-def probe_all(urls):
-    """At most 2 requests at a time per host: lists point hundreds of channels at the same CDN."""
-    gates = collections.defaultdict(lambda: threading.Semaphore(2))
+
+def probe_all(urls, workers=48, per_host=2, second=True):
+    """At most 2 requests at a time per host: lists point hundreds of channels at the same CDN. The failures are
+    probed once more, one request per host, so a refusal caused by the burst (TVI's CDN answers 403) does not drop a channel."""
+    gates = collections.defaultdict(lambda: threading.Semaphore(per_host))
     done = [0]
     def one(u):
         with gates[urllib.parse.urlsplit(u).hostname]:
@@ -150,8 +220,15 @@ def probe_all(urls):
         if done[0] % 100 == 0:
             print(f"  {done[0]}/{len(urls)}", file=sys.stderr, flush=True)
         return u, r
-    with concurrent.futures.ThreadPoolExecutor(48) as pool:
-        return dict(pool.map(one, urls))
+    with concurrent.futures.ThreadPoolExecutor(workers) as pool:
+        results = dict(pool.map(one, urls))
+    if second:
+        again = [u for u, r in results.items() if r["status"] not in ("OK", "YOUTUBE")]
+        print(f"  second pass: {len(again)} failures", file=sys.stderr, flush=True)
+        for u, r in probe_all(again, 8, 1, False).items():
+            if r["status"] == "OK":
+                results[u] = r
+    return results
 
 
 def bare_ip(url):
@@ -185,6 +262,38 @@ def base_id(tvg_id):
     return tvg_id.split("@")[0]
 
 
+def identity(tvg_id):
+    """The channel behind a tvg-id: quality feeds are the same programme, other feeds (@Arabic, @Brazil...) are not."""
+    return re.sub(r"@(SD|HD|FHD|UHD|4K)$", "", tvg_id, flags=re.I).lower()
+
+
+def group(entries):
+    """Yields (best entry, up to 3 other working URLs) per channel. Identity is the tvg-id without a quality feed, never
+    the display name: entries without a tvg-id stay on their own. The input order decides which entry is best."""
+    groups = {}
+    for c in entries:
+        groups.setdefault(identity(c["id"]) or c["url"], []).append(c)
+    used = set()
+    for same in groups.values():
+        same = [c for c in same if c["url"] not in used]
+        if same:
+            # the player cannot open a YouTube link, only the first entry may be one
+            alts = [u for u in dict.fromkeys(c["url"] for c in same[1:] if c["probe"]["status"] == "OK") if u != same[0]["url"]][:3]
+            used.add(same[0]["url"])  # an alternate may still be another channel's own stream
+            yield same[0], alts
+
+
+def label(name):
+    """Display name without list markers, and whether a list flags it geo-blocked (iptv-org "[Geo-blocked]", Free-TV Ⓖ)."""
+    clean = re.sub(r"\s*[ⓈⒼⓎⒹ]\s*|\s*\((?:\d{3,4}[pi]|[^)]*Geo-blocked[^)]*)\)|\s*\[(?:Geo-blocked|Not 24/7)\]", "", name).strip()
+    return clean, bool(re.search("Geo-blocked|Ⓖ", name))
+
+
+def geo_flagged(entries):
+    """Identities that any list flags geo-blocked, Free-TV included even though its entries never reach the catalog."""
+    return {identity(c["id"]) for c in entries if c["id"] and label(c["name"])[1]}
+
+
 def country(tvg_id):
     m = re.search(r"\.([a-z]{2})$", base_id(tvg_id))
     return m.group(1) if m else ""
@@ -198,6 +307,7 @@ def self_check():
     assert not official("Canal+ Sport (France)", "https://tv.streambox.fr/canalsport/index.m3u8")
     assert not official("Fox Sports News", "https://skynewsau-live-premium.akamaized.net/x.m3u8")
     assert not official("Live TV", "https://live.example.net/tv.m3u8")  # generic labels never count as the channel's own domain
+    assert not official("TF1", "https://r.eu.cdn-redge.media/livehls/oil/freecdn/live/tf1/live.livx/playlist.m3u8")  # unofficial relay
     assert bare_ip("http://151.80.18.177:86/TF1_HD/index.m3u8") and not bare_ip("https://example.com/a.m3u8")
 
 
@@ -255,18 +365,15 @@ def main():
         c["probe"] = {"status": "DRM", "detail": "DRM key in the playlist"} if c["drm"] else \
             results.get(c["url"], {"status": "UNSUPPORTED", "detail": c["url"].split(":")[0]})
 
-    # catalog: working streams only, one per channel, official-looking hosts only
+    # catalog: working streams only, official-looking hosts only, one card per channel with its other streams as fallbacks
     def usable(c):
         # Free-TV states no license: its entries are probed for the report but not copied into the app, the TV downloads that list itself
         return c["probe"]["status"] in ("OK", "YOUTUBE") and not bare_ip(c["url"]) and c["source"] != "Free-TV" and \
             (c["source"] != "iptv-org" or official(c["name"], c["url"]))
     order = {"M3UPT": 0, "Free-TV": 1, "iptv-org": 2}
-    seen, rows = set(), collections.defaultdict(list)
-    for c in sorted((c for c in cand if usable(c)), key=lambda c: order[c["source"]]):  # stable: keeps each list's own order
-        key = base_id(c["id"]).lower() or re.sub(r"\W+", "", c["name"].lower())
-        if key in seen or c["url"] in seen:
-            continue
-        seen.update((key, c["url"]))
+    rows = collections.defaultdict(list)
+    geo_ids = geo_flagged(cand)
+    for c, alts in group(sorted((c for c in cand if usable(c)), key=lambda c: order[c["source"]])):  # stable: keeps each list's own order
         theme = next((THEMES[k] for k in c["cats"] if k in THEMES), None)
         if theme:
             row = (theme, c["lang"] if c["lang"] in ("por", "fra") else "int")
@@ -281,10 +388,11 @@ def main():
             else:
                 row = ("live", "pt" if country(c["id"]) == "pt" else "por" if c["lang"] == "por" else "fra")
         if row:
-            # the stream answered from here: iptv-org's "[Geo-blocked]" and Free-TV's Ⓖ do not apply
-            rows[row].append({"n": re.sub(r"\s*[ⓈⒼⓎⒹ]\s*|\s*\((?:\d{3,4}[pi]|[^)]*Geo-blocked[^)]*)\)|\s*\[Geo-blocked\]", "", c["name"]).strip(),
-                              "u": c["url"], "l": c["logo"], "s": c["source"], "id": c["id"],
-                              "q": c["probe"].get("quality", ""), "c": country(c["id"])})
+            name, geo = label(c["name"])  # geo: answered from here, but a list says it may not elsewhere
+            geo = geo or identity(c["id"]) in geo_ids
+            item = {"n": name, "u": c["url"], "a": alts, "l": c["logo"], "s": c["source"], "id": c["id"],
+                    "q": c["probe"].get("quality", ""), "c": country(c["id"]), "geo": geo}
+            rows[row].append({k: v for k, v in item.items() if v or k not in ("a", "geo")})
     row_order = [("live", r) for r in ("pt", "fra", "por", "kids", "music", "news", "other")] + \
                 [(t, r) for t in ("sport", "docs", "movies", "series") for r in ("por", "fra", "int")]
     today = datetime.date.today().isoformat()
@@ -296,11 +404,17 @@ def main():
     # report
     md = [f"# Free sources checked on {today}", "",
           "Generated by `tools/probe_streams.py` from the network the TV uses (Portugal). A stream counts as working when its",
-          "playlist, its best variant up to 1080p and a media segment all answer to a plain request: no Referer, no browser",
-          "user agent, no DRM key. Streams hosted on a bare IP address are left out of the catalog. M3UPT and Free-TV only",
-          "list official free streams; iptv-org lists any public stream, so from it only free ad-supported platforms (Pluto TV,",
-          "Samsung TV Plus, Amagi, Wurl...), broadcast CDNs and channels served from their own domain are kept. Free-TV states",
-          "no license, so none of its entries is copied into the app: the TV downloads that list itself (IPTV section).", "",
+          "playlist, its best video variant up to 1080p (or, when that one fails, a lower one) and a media segment all answer",
+          "to a plain request: no Referer, no browser user agent, no DRM key. The segment must be audio/video data (MPEG-TS,",
+          "fMP4, MPEG-PS), not a page. Streams declared audio-only by their codecs, or whose segments are ADTS audio, are",
+          "refused. An AES-128 segment cannot be sniffed, so it only has to be binary and not served as HTML, JSON or audio (its",
+          "key is not fetched). DASH streams are checked on their manifest only. Streams hosted on a bare IP address are left",
+          "out of the catalog. Each catalog channel keeps up to 3 other working streams of the same channel as fallbacks:",
+          "same tvg-id, quality feeds (@SD, @HD...) merged, other feeds such as languages kept apart, never matched by name.",
+          "M3UPT and Free-TV only list official free streams; iptv-org lists any public stream, so from it only free ad-supported",
+          "platforms (Pluto TV, Samsung TV Plus, Amagi, Wurl...), broadcast CDNs and channels served from their own domain are",
+          "kept. Free-TV states no license, so none of its entries is copied into the app: the TV downloads that list itself",
+          "(IPTV section).", "",
           "| List | Entries | Probed | Working | Needs browser headers | DRM | In the catalog |", "|---|---|---|---|---|---|---|"]
     in_catalog = collections.Counter(i["s"] for r in catalog["rows"] for i in r["items"])
     for n in LISTS:
@@ -309,11 +423,16 @@ def main():
         md.append(f"| {n} | {len(lists[n])} | {len(mine)} | {ok} | {sum(1 for c in mine if c['headers'] and c['probe']['status'] not in ('OK', 'YOUTUBE'))} "
                   f"| {sum(1 for c in mine if c['probe']['status'] == 'DRM')} | {in_catalog[n]} |")
     md += ["", "Probed = the Portuguese and French candidates, plus English and Spanish channels of the themed categories.", "",
-           "## Failure classes", "", "| Result | Streams |", "|---|---|"]
+           "## Failure classes", "",
+           "EMPTY: HTTP 204 or an empty body or playlist. WEBPAGE: answered 200 with something that is not a stream.",
+           "SEGMENT_FORMAT: the segment is a page, JSON or a playlist. AUDIO: audio-only. VARIANT_FORMAT: a variant is not an",
+           "HLS playlist. UNREACHABLE: DNS, TLS, refused connection or timeout on the first request. HTTP403: refused",
+           "(403 or 451) at any step. HTTPnnn, VARIANTnnn, SEGMENTnnn: that HTTP status (VARIANT0, SEGMENT0 = timeout).", "",
+           "| Result | Streams |", "|---|---|"]
     for status, n in collections.Counter(c["probe"]["status"] for c in cand).most_common():
         md.append(f"| {status} | {n} |")
-    md += ["", "## Catalog rows", "", "| Category | Row | Channels |", "|---|---|---|"]
-    md += [f"| {r['cat']} | {r['row']} | {len(r['items'])} |" for r in catalog["rows"]]
+    md += ["", "## Catalog rows", "", "| Category | Row | Channels | Fallback streams |", "|---|---|---|---|"]
+    md += [f"| {r['cat']} | {r['row']} | {len(r['items'])} | {sum(len(i.get('a', [])) for i in r['items'])} |" for r in catalog["rows"]]
     md += ["", "## Portuguese and French channels that did not pass", "",
            "| Channel | List | Result | Declares browser headers |", "|---|---|---|---|"]
     for c in cand:
