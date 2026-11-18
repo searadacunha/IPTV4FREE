@@ -65,7 +65,7 @@ Useful upstream patterns, **not copied into this repository**: [iptv-org/iptv](h
 
 ## How to verify on the user's TV
 
-- Build: `cd hub && ./gradlew testDebugUnitTest assembleRelease`.
+- Build: `cd hub && S4F_TEST_BUILD=1 ./gradlew testDebugUnitTest assembleRelease` (test build; an APK for the TV needs the release key, see `docs/SIGNING.md`).
 - Run the Python regression suite: `python3 -m unittest discover -s tools/tests -p 'test_*.py' -v`.
 - On the actual television, launch the affected channels from both IPTV4FREE (Kodi) and the STREAMING4FREE hub; record whether each fails immediately or after playback begins.
 - While reproducing errors on authorised ADB connection: `adb logcat -d -s S4F:V ExoPlayerImplInternal:E`. Avoid sharing full URLs containing signed credentials or tokens.
