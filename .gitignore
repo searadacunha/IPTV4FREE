@@ -4,3 +4,10 @@ __pycache__/
 tools/.cache/
 .gradle/
 local.properties
+
+# signing keys never go into the repository
+*.jks
+*.keystore
+*.p12
+*.pfx
+signing.properties
