@@ -17,9 +17,14 @@ their data (see [Android 12 adb backup restrictions](https://developer.android.c
   keyPassword=...
   ```
 
-- `hub/` (Gradle), `build.sh` (WATCHED) and `cinefuse/build.sh` sign with it when it exists. Without it (CI, a fresh
-  clone) they fall back to the computer's Android debug key, which is fine for tests but must not be installed over
-  an app signed by another key.
+- `signing/release-cert.sha256` holds the SHA-256 of the release certificate (public, not a secret). It is
+  `27cf445d…`, the key that signed the HUB, WATCHED and CINEFUSE TV installed on the TV.
+- `hub/` (Gradle), `build.sh` (WATCHED) and `cinefuse/build.sh` (both through `tools/signing.sh`) sign with that key
+  and **stop the build** when the key file is missing or its certificate does not match the expected SHA-256.
+- The computer's debug key is accepted only for an explicit test build (`S4F_TEST_BUILD=1`) or in CI (`CI=true`, set
+  by GitHub Actions). Such an APK cannot update the apps on the TV: Android refuses it.
+- Moving to another release key is a decision, not a build setting: it means reinstalling the apps on the TV and
+  losing their data. Change `signing/release-cert.sha256` only then.
 - Keystores, `.p12`, `.jks` and `signing.properties` are ignored by git. Never commit them, never upload them.
 - Keep at least one copy of the keystore and its password **off the computer** (an encrypted external disk or a
   password manager). A key that exists in one place only is lost with that place.
