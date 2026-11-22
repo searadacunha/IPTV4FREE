@@ -39,11 +39,25 @@ class EpgIndex:
         return len(self.ids)
 
 
+def _put_unambiguous(mapping: dict[str, str], ambiguous: set[str], key: str, cid: str) -> None:
+    """Never map a shared XMLTV display name to an arbitrary channel id."""
+    if not key or key in ambiguous:
+        return
+    previous = mapping.get(key)
+    if previous is None:
+        mapping[key] = cid
+    elif previous.casefold() != cid.casefold():
+        mapping.pop(key, None)
+        ambiguous.add(key)
+
+
 def parse_channels(data: bytes) -> EpgIndex:
     """Read <channel> elements from XMLTV bytes (plain or gzip). Stops at the first programme."""
     if data[:2] == b"\x1f\x8b":
         data = gzip.decompress(data)
     index = EpgIndex()
+    ambiguous_display: set[str] = set()
+    ambiguous_names: set[str] = set()
     for _, elem in ET.iterparse(io.BytesIO(data), events=("end",)):
         if elem.tag == "programme":
             break  # XMLTV lists channels before programmes
@@ -53,10 +67,10 @@ def parse_channels(data: bytes) -> EpgIndex:
         if cid:
             index.ids.setdefault(cid.lower(), cid)
             for dn in elem.iter("display-name"):
-                if dn.text and dn.text.strip():
-                    index.display.setdefault(dn.text.strip().lower(), cid)
-                if dn.text and match_key(dn.text):
-                    index.names.setdefault(match_key(dn.text), cid)
+                if not dn.text or not dn.text.strip():
+                    continue
+                _put_unambiguous(index.display, ambiguous_display, dn.text.strip().lower(), cid)
+                _put_unambiguous(index.names, ambiguous_names, match_key(dn.text), cid)
         elem.clear()
     return index
 
@@ -76,10 +90,14 @@ def load_index(url: str, cache_dir: Path, max_age_hours: float, timeout: float,
             req = urllib.request.Request(url, headers={"User-Agent": user_agent})
             with urllib.request.urlopen(req, timeout=max(timeout, 60)) as resp:
                 data = resp.read()
+            # Check the candidate before replacing a usable cached guide.
+            # Providers sometimes return truncated XML or HTML error pages.
+            if not parse_channels(data):
+                raise ValueError("XMLTV response contains no channels")
             tmp = cached.with_suffix(".tmp")
             tmp.write_bytes(data)
             tmp.replace(cached)
-        except OSError as e:
+        except (OSError, ET.ParseError, EOFError, ValueError) as e:
             if not cached.exists():
                 log.warning("EPG %s unavailable (%s): building without guide mapping", url, e)
                 return None
