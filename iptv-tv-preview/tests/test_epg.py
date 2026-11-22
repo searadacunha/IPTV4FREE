@@ -71,3 +71,47 @@ def test_load_index_without_cache_or_with_corrupt_cache_returns_none(tmp_path):
     url = "http://127.0.0.1:9/corrupt.xml"
     _cache_file(tmp_path, url).write_bytes(b"<tv><chan")  # fresh but unreadable
     assert epg.load_index(url, tmp_path, 12, 2, "test") is None
+
+
+def test_ambiguous_guide_names_never_choose_the_first_provider():
+    guide = b"""<tv>
+      <channel id="north.xx"><display-name>World News HD</display-name><display-name>Shared</display-name></channel>
+      <channel id="south.xx"><display-name>World News SD</display-name><display-name>Shared</display-name></channel>
+      <channel id="sports.xx"><display-name>Sports Network</display-name></channel>
+    </tv>"""
+    index = epg.parse_channels(guide)
+    assert len(index) == 3
+    assert epg.match_key("World News") not in index.names
+    assert "shared" not in index.display
+    assert epg.match("Shared", "", {}, index) is None
+    assert epg.assign([("World News (4K)", "", "")], {}, index) == [None]
+    assert epg.match("Shared", "north.xx", {}, index) == "north.xx"
+    assert epg.match("Sports Network", "", {}, index) == "sports.xx"
+
+
+def test_invalid_update_preserves_valid_cached_guide(tmp_path, monkeypatch):
+    import io
+
+    url = "https://example.com/guide.xml"
+    cached = _cache_file(tmp_path, url)
+    previous = gzip.compress(EPG_XML)
+    cached.write_bytes(previous)
+    os.utime(cached, (time.time() - 86400,) * 2)
+    monkeypatch.setattr(epg.urllib.request, "urlopen", lambda req, timeout: io.BytesIO(b"<bad"))
+    index = epg.load_index(url, tmp_path, 1, 1, "test")
+    assert index is not None and len(index) == 3
+    assert cached.read_bytes() == previous
+
+
+def test_empty_xmltv_update_preserves_valid_cached_guide(tmp_path, monkeypatch):
+    import io
+
+    url = "https://example.com/empty.xml"
+    cached = _cache_file(tmp_path, url)
+    previous = EPG_XML
+    cached.write_bytes(previous)
+    os.utime(cached, (time.time() - 86400,) * 2)
+    monkeypatch.setattr(epg.urllib.request, "urlopen", lambda req, timeout: io.BytesIO(b"<tv></tv>"))
+    index = epg.load_index(url, tmp_path, 1, 1, "test")
+    assert index is not None and len(index) == 3
+    assert cached.read_bytes() == previous
