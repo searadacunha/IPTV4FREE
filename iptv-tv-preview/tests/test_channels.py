@@ -49,6 +49,17 @@ def test_duplicates_keep_best_resolution_and_cross_lineup_priority(tmp_path):
     assert {"http://a/1080", "http://b/0"} <= used
 
 
+def test_copy_that_passed_the_last_scan_beats_a_sharper_one_that_failed_it(tmp_path):
+    lu = Lineup("fr", "France", ("s",))
+    entries = [e("TF1 HD (1080p)", "http://relay/1080", "TF1.fr@HD"), e("TF1 (720p)", "http://other/720", "TF1.fr@SD")]
+    book = NumberBook(tmp_path / "numbers.json")
+    out, rep = build_lineup(lu, entries, cfg(lu), lambda x: True, set(), None, book,
+                            passing=lambda x: x.url != "http://relay/1080")
+    assert [x.url for x in out] == ["http://other/720"] and rep.duplicates == 1
+    (out, _), _ = build(lu, entries, tmp_path / "b")  # both passing: the sharper copy wins, as before
+    assert [x.url for x in out] == ["http://relay/1080"]
+
+
 def test_output_does_not_depend_on_input_order(tmp_path):
     lu = Lineup("w", "World", ("s",), favorites=("Zeta",), by_category=True)
     entries = [e(f"Ch {i:03d}", f"http://x/{i}", cat=random.choice(["News", "Music", "Shop", ""]))

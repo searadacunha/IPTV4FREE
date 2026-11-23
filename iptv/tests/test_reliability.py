@@ -9,13 +9,23 @@ from conftest import SEGMENT, Handler, playlist
 from iptv4free.config import Config, load_config
 from iptv4free.pipeline import run_build, run_scan
 from iptv4free.playlists import Entry, drop_browser_agent, render_m3u, request_parts
-from iptv4free.scanner import Target, _refused, probe, sniff
+from iptv4free.scanner import Result, Target, _refused, probe, sniff
 
 HTML = b"<!doctype html><html><body>Access denied in your region</body></html>\n" * 40
 JSON = b'{"status": "error", "message": "geo blocked"}' + b" " * 2000
 PT_HTML = ("<!doctype html><html><body><h1>Conteúdo indisponível</h1><p>Não é possível ver este "
            "vídeo na sua região. Pedimos desculpa: só está disponível em Portugal, Açores e Madeira."
            "</p></body></html>\n").encode() * 20  # under 90 % ASCII, 512-byte head ends inside a character
+
+
+FMP4 = b"\x00\x00\x00\x18ftypiso6" + b"\x00" * 2000
+
+
+def dash(init):
+    return (b'<?xml version="1.0"?><MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="dynamic"><Period>'
+            b'<AdaptationSet mimeType="audio/mp4"><SegmentTemplate initialization="a.mp4"/><Representation id="a"/></AdaptationSet>'
+            b'<AdaptationSet contentType="video"><SegmentTemplate initialization="' + init.encode() + b'" media="$Number$.m4s"/>'
+            b'<Representation id="v" mimeType="video/mp4" height="720"/></AdaptationSet></Period></MPD>')
 
 
 def media(segment, *tags):
@@ -49,8 +59,21 @@ def base(http_server):
                                          ("BANDWIDTH=5000000,RESOLUTION=1920x1080", "gone.m3u8")), None),
         "/r/refused.m3u8": (200, master(("BANDWIDTH=5000000,RESOLUTION=1920x1080", "deny.m3u8"),
                                         ("BANDWIDTH=1000000,RESOLUTION=640x360", "gz.m3u8")), None),
+        "/r/live.mpd": (200, dash("v/init.mp4"), None),
+        "/r/v/init.mp4": (200, FMP4, None),
+        "/r/gone.mpd": (200, dash("v/missing.mp4"), None),
+        "/r/page.mpd": (200, dash("page.ts"), None),
+        "/r/drm.mpd": (200, dash("v/init.mp4").replace(b"<Period", b'<ContentProtection schemeIdUri="urn:mpeg:dash:mp4protection:2011"/><Period'), None),
     })
     return http_server + "/r"
+
+
+def test_dash_needs_a_video_initialization_segment(base):
+    assert check(f"{base}/live.mpd") == Result(f"{base}/live.mpd", True, "DASH initialization segment, fMP4")
+    assert not check(f"{base}/gone.mpd").ok                      # valid manifest, segments unavailable
+    assert "HTML page" in check(f"{base}/page.mpd").detail       # an error page where the video should be
+    drm = check(f"{base}/drm.mpd")
+    assert not drm.ok and "DRM" in drm.detail
 
 
 def check(url):

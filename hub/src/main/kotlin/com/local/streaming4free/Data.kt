@@ -231,6 +231,8 @@ private val MARKERS = Regex("\\s*[ⓈⒼⓎⒹ]") // Free-TV's flags (geo-blocke
 
 private val GEO_LABEL = Regex("""\s*\[Geo-blocked]\s*$""", RegexOption.IGNORE_CASE) // iptv-org's flag
 private val HEADER_OPT = Regex("http-(referrer|user-agent)", RegexOption.IGNORE_CASE)
+// license_type/license_key, drm_legacy=org.w3.clearkey|..., drm={...}: inputstream.adaptive's ways to declare a DRM key
+private val DRM_PROP = Regex("license|drm|clearkey|widevine|playready", RegexOption.IGNORE_CASE)
 
 /**
  * Reads an extended M3U playlist. Left out: entries that are not http(s), and entries that only play with a DRM key
@@ -247,7 +249,7 @@ fun parseM3u(lines: Sequence<String>, source: String): List<Channel> {
         when {
             line.startsWith("#EXTINF") -> info = line
             line.isEmpty() -> {}
-            line.startsWith("#KODIPROP") && "license" in line -> drm = true
+            line.startsWith("#KODIPROP") && DRM_PROP.containsMatchIn(line) -> drm = true
             line.startsWith("#EXTVLCOPT") && HEADER_OPT.containsMatchIn(line) -> headers = true
             line.startsWith("#") -> {}
             else -> {

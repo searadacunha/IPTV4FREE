@@ -193,6 +193,15 @@ private val BRACKETS = Regex("""\(.*?\)|\[.*?]""")
 private val SPACES = Regex("\\s+")
 private val QUALITY = Regex("""\s+(hd|fhd|uhd|sd|4k)$""", RegexOption.IGNORE_CASE)
 
+private fun plainTitle(title: String) = title.replace(BRACKETS, " ").replace(SPACES, " ").trim().replace(QUALITY, "").lowercase(Locale.ROOT)
+
 /** The official service of a French channel that has no free legal live from Portugal, or null. */
-fun rightsService(id: String, title: String): String? =
-    RIGHTS_BY_ID[channelKey(id)] ?: RIGHTS_BY_NAME[title.replace(BRACKETS, " ").replace(SPACES, " ").trim().replace(QUALITY, "").lowercase(Locale.ROOT)]
+fun rightsService(id: String, title: String): String? = RIGHTS_BY_ID[channelKey(id)] ?: RIGHTS_BY_NAME[plainTitle(title)]
+
+// checked 2026-11-23: RTP 1 and RTP 2 left plain HLS for DASH with a DRM key (old URLs 404); RTP's live stays free in RTP Play
+private val RTP = setOf("rtp1.pt", "rtp2.pt", "rtp3.pt", "rtpnoticias.pt", "rtpmemoria.pt", "rtpacores.pt", "rtpmadeira.pt", "rtpafrica.pt", "rtpmundo.pt")
+private val RTP_NAMES = Regex("rtp ?(1|2|3|notícias|noticias|memória|memoria|açores|acores|madeira|áfrica|africa|mundo)")
+
+/** The free official app that carries this channel's live here, or null. */
+fun officialApp(id: String, title: String): String? =
+    if (channelKey(id) in RTP || RTP_NAMES.matches(plainTitle(title))) "RTP Play" else null

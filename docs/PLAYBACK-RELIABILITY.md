@@ -70,3 +70,48 @@ Useful upstream patterns, **not copied into this repository**: [iptv-org/iptv](h
 - On the actual television, launch the affected channels from both IPTV4FREE (Kodi) and the STREAMING4FREE hub; record whether each fails immediately or after playback begins.
 - While reproducing errors on authorised ADB connection: `adb logcat -d -s S4F:V ExoPlayerImplInternal:E`. Avoid sharing full URLs containing signed credentials or tokens.
 - For a refreshed **catalog snapshot**, run `python3 tools/probe_streams.py` from the network used by the television, review the generated changes, and rebuild the hub. Do not claim that a fresh catalog is already on the installed TV.
+
+## Follow-up, 2026-11-23
+
+Probed again from the house line (Portugal, the network the TV uses). Per-channel verdicts are generated into
+`docs/SOURCES.md` ("Main channels"); every stream of TF1 in the three lists was checked by hand as well.
+
+**TF1: no authorised source from Portugal.** Free-TV's TF1 (bare IP `151.80.18.177`) times out. The only TF1 that
+answers is iptv-org's `r.eu.cdn-redge.media/.../oeu/mt/live/tf1/...`: plain HLS, H.264 + AAC up to 1080p, playable by
+Media3, but an operator's distribution feed (the same host carries France 2 to 5, M6, TMC, TFX, W9, 6ter, LCI, BFM TV
+under one operator path), not TF1's. It stays out of the catalog and out of the fallbacks, as decided on
+2026-11-11; the iptv-org folder still shows what iptv-org publishes. TF1's own live is TF1+, limited to France,
+Belgium, Luxembourg, Switzerland and some African countries; its CDN refuses Kodi and ffmpeg user agents, and
+disguising the player is not done. Same situation for TMC, TFX, LCI, M6, W9, 6ter and France 2 to 5.
+
+**RTP 1 and RTP 2 moved.** Their HLS URLs (catalog, Free-TV, iptv-org) now answer 404; M3UPT lists them as DASH with
+a ClearKey written in the playlist (`drm_legacy`). Decrypting with a key published by a third party is not done: both
+leave the catalog, and their failure message now names the free RTP Play app. RTP Notícias, RTP Memória, TVI, CNN
+Portugal, Porto Canal and BFM TV play from official hosts and are in the catalog.
+
+**Changes**
+
+1. Hub: every `#KODIPROP` DRM syntax (`license_*`, `drm_legacy`, `drm`, ClearKey, Widevine, PlayReady) marks an entry
+   as DRM. Before, M3UPT's new RTP 1 and RTP 2 entries were listed and offered as fallbacks.
+2. Kodi lineups: among copies of one channel, the one that passed the last scan wins over a sharper one that failed it
+   (a failing copy stays "alive" for 2 more scans and used to hide a working one).
+3. DASH, in the probe and the Kodi scanner: a manifest declaring `ContentProtection` is DRM (the Kodi scanner used to
+   pass it), and the video initialization segment must be MP4 data. Media segments are not computed yet.
+4. Catalog: 885 channels (was 946): 63 streams left the lists, 12 are dead (404, RTP 1 and RTP 2 among them),
+   1 changed its tvg-id; 14 new.
+
+**Required tests, where they are**
+
+| Case | Test |
+|---|---|
+| Working HLS stream | `tools/tests` `test_falls_back_to_working_lower_quality`, `iptv/tests/test_scanner.py` |
+| Valid manifest, segments unavailable | `test_empty_segment_is_empty` (HLS), `test_valid_manifest_but_segments_unavailable` (DASH), `test_dash_needs_a_video_initialization_segment` (Kodi) |
+| Expired URL or HTTP error | `ReliabilityTest.httpStatuses`, `deadLinkSwitchesToTheNextSource` |
+| Drop during playback | `interruptedLiveStreamRetriesWithBackoffAtTheLiveEdgeThenLowersQuality`, `liveStreamDroppingEveryThirtySecondsKeepsPlaying` |
+| Reconnection and source switch | `deadHostBeforeTheFirstPictureGetsOneRetryWhenAnotherSourceIsLeft`, `offlineTvWaitsWithoutUsingTriesThenRecovers` |
+| No replacement source | `everySourceFailingEndsWithGiveUpAndNoLoop` |
+| Geo-blocking | `geoOnlyWhenTheBodySaysSo`, `geoSwitchesAtOnce` |
+| No endless reconnection | `streamThatDropsEverySecondsDoesNotRetryForever`, `behindLiveWindowRejoinsThreeTimesAMinuteThenCountsAsTimeout` |
+
+**Still not verified:** playback on the TCL itself (nothing installed on the TV for this change), DASH media segments,
+and whether the catalog's 885 streams keep working after the probe.

@@ -111,7 +111,7 @@ Review the dry-run output before a real deployment. The toolkit supports safegua
 | **WATCHED** | Lightweight Android TV fullscreen WebView launcher for watched.cx, with remote playback-key support where available. | [Root launcher](./) |
 | **CINEFUSE TV** | Fullscreen cinefuse.cc launcher with remote-friendly navigation, an optional cursor and restricted external-site navigation. | [`cinefuse/`](cinefuse/) |
 
-**Inside the hub:** a public-channel catalogue, country/category playlist browsing, unified search, favourites and on-device history. Its Media3 player supports HLS, DASH, MPEG-TS and MP4, audio/subtitle selection, adaptive quality and reconnect-on-error behaviour. The catalogue's documented Portugal-network test snapshot contained **781 checked free channels**; stream availability changes and is not guaranteed. See [source-testing results](docs/SOURCES.md).
+**Inside the hub:** a public-channel catalogue, country/category playlist browsing, unified search, favourites and on-device history. Its Media3 player supports HLS, DASH, MPEG-TS and MP4, audio/subtitle selection, adaptive quality and reconnect-on-error behaviour. The catalogue's Portugal-network snapshot of 2026-11-23 contains **885 checked free channels**; stream availability changes and is not guaranteed. See [source-testing results](docs/SOURCES.md).
 
 The hub also links to official free services such as ARTE, RTP Play, Plex, Rakuten TV and others, opening installed apps or their store listings where appropriate. Some services are restricted by country or require their own apps.
 

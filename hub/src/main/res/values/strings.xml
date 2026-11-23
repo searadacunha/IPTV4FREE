@@ -93,6 +93,7 @@
     <string name="all_failed">Les %d sources connues ont échoué.</string>
     <string name="no_alternative">Aucune autre source connue pour cette chaîne.</string>
     <string name="rights_fr">Pas de direct gratuit et légal depuis le Portugal : %s ne diffuse pas cette chaîne ici. Gratuits et légaux : France 24, TV5MONDE, ARTE. Payant : le pack France TV de MEO (France 2, 3, 5).</string>
+    <string name="official_app">Direct gratuit et officiel : l\'appli %s (rubrique TV en direct).</string>
     <string name="ok_retry">OK : réessayer · Retour : revenir</string>
     <string name="ok_external">OK : ouvrir dans %s · Retour : revenir</string>
     <string name="no_audio_codec">Son non lu par cette TV (%s)</string>

@@ -55,6 +55,11 @@ class ScanHistory:
         s = self.streams.get(key)
         return bool(s and s["last_ok"] is not None and s["fail_streak"] < max_failed)
 
+    def passing(self, key: str) -> bool:
+        """Worked on the last scan."""
+        s = self.streams.get(key)
+        return bool(s and s["last_ok"] is not None and s["fail_streak"] == 0)
+
     def save(self) -> None:
         atomic_write(self.path, json.dumps(self.streams, indent=0, sort_keys=True))
 
