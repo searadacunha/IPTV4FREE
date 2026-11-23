@@ -71,6 +71,22 @@ class ClassifyTest {
     }
 }
 
+class FrenchProviderHandoffTest {
+    @Test fun molotovIsAnOfficialApplicationAndNeverAnExtractedStream() {
+        val molotov = APPS.single { it.id == "molotov" }
+        assertEquals(listOf("tv.molotov.app"), molotov.packages)
+        assertEquals(Terms.FREEMIUM, molotov.terms)
+        assertTrue(Cat.LIVE in molotov.cats)
+        assertFalse(molotov.packages.any { it.startsWith("http") })
+    }
+
+    @Test fun providerOnlyForRecognizedFrenchChannels() {
+        assertEquals("TF1+", rightsService("TF1.fr", "TF1"))
+        assertEquals("M6+", rightsService("M6.fr", "M6"))
+        assertNull(rightsService("RTP1.pt", "RTP1"))
+    }
+}
+
 class RecoveryTest {
     @Test fun deadLinkSwitchesToTheNextSource() {
         val r = Recovery(3)
