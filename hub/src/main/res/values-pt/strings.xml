@@ -38,6 +38,7 @@
     <string name="app_kodi">leitor multimédia</string>
     <string name="app_tivimate">leitor IPTV</string>
     <string name="app_france">canais franceses</string>
+    <string name="app_molotov">Molotov Extra: TF1/M6 pagos, portabilidade UE para residentes franceses elegíveis</string>
     <string name="app_paid">desporto</string>
 
     <string name="row_continue">Continuar a ver</string>
@@ -88,9 +89,11 @@
     <string name="play_error">%1$s: %2$s (%3$s).</string>
     <string name="all_failed">As %d fontes conhecidas falharam.</string>
     <string name="no_alternative">Nenhuma outra fonte conhecida para este canal.</string>
-    <string name="rights_fr">Sem direto grátis e legal a partir de Portugal: o %s não transmite este canal aqui. Grátis e legais: France 24, TV5MONDE, ARTE. Pago: o pack France TV da MEO (France 2, 3, 5).</string>
+    <string name="rights_fr">Não há direto gratuito conhecido a partir de Portugal no %s. Molotov Extra pode funcionar para residentes franceses elegíveis em viagem temporária na UE. MEO Pack France TV: France 2, 3, 5 (pago).</string>
     <string name="official_app">Direto grátis e oficial: a app %s (secção TV em direto).</string>
     <string name="ok_retry">OK: tentar de novo · Voltar: regressar</string>
+    <string name="ok_provider">OK: abrir %s · Voltar: regressar</string>
+    <string name="molotov_portability">Opção Molotov Extra: assinatura, residência francesa elegível e viagem temporária na UE. Acesso ao canal não garantido.</string>
     <string name="ok_external">OK: abrir no %s · Voltar: regressar</string>
     <string name="no_audio_codec">Som não suportado por esta TV (%s)</string>
     <string name="no_video_codec">Imagem não suportada por esta TV (%s)</string>
@@ -131,7 +134,7 @@
     <string name="un_tvi">TVI em direto</string>
     <string name="un_tvi_v">canais verificados e TVI Player</string>
     <string name="un_fr">TF1, M6, France 2 em direto</string>
-    <string name="un_fr_v">sem direto grátis e legal a partir de Portugal: France 24, TV5MONDE, ARTE grátis, pack France TV da MEO pago (France 2, 3, 5)</string>
+    <string name="un_fr_v">Molotov Extra: canais franceses para residentes franceses elegíveis em viagem temporária na UE. MEO Pack France TV: France 2, 3, 5 (pago).</string>
     <string name="un_paid">Sport TV, DAZN, Eleven</string>
     <string name="un_paid_v">assinatura paga</string>
 
