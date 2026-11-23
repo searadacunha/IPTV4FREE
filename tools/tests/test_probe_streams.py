@@ -352,3 +352,16 @@ class SecondPassTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OfficialListTests(unittest.TestCase):
+    def test_curated_streams_are_plain_broadcaster_urls(self):
+        entries = probe_streams.parse_m3u(probe_streams.OFFICIAL.read_text("utf-8"), "Officiel")
+        self.assertTrue(entries)
+        for c in entries:
+            self.assertTrue(c["id"], c["name"])
+            self.assertTrue(c["url"].startswith("https://"), c["url"])
+            self.assertNotIn("?", c["url"])  # a token or signature expires and is someone's access, not a public stream
+            self.assertNotIn("__token__", c["url"])
+            self.assertFalse(probe_streams.bare_ip(c["url"]) or c["drm"] or c["headers"], c["url"])
+            self.assertFalse(probe_streams.sanctioned(c["name"], c["url"]))

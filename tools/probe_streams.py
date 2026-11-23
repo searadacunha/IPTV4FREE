@@ -27,6 +27,7 @@ LISTS = {
     "iptv-org": "https://iptv-org.github.io/iptv/index.m3u",
 }
 LANGS = {l: f"https://iptv-org.github.io/iptv/languages/{l}.m3u" for l in ("fra", "por", "eng", "spa")}
+OFFICIAL = Path(__file__).resolve().parent / "official.m3u"  # broadcasters' own streams outside the lists, kept in the repository
 FREETV_GROUPS = {"France": "fra", "Portugal": "por", "Brazil": "por", "Belgium": "fra", "Switzerland": "fra",
                  "Luxembourg": "fra", "Monaco": "fra", "News": "eng", "Documentaries (EN)": "eng"}
 THEMES = {"Sports": "sport", "Documentary": "docs", "Science": "docs", "Outdoor": "docs", "Travel": "docs",
@@ -305,9 +306,19 @@ def bare_ip(url):
 # platforms and broadcast CDNs below are kept, or a channel served from a domain carrying its own name.
 FAST_HOSTS = re.compile(r"(^|\.)(jmp2\.uk|amagi\.tv|wurl\.com|wurl\.tv|transmit\.live|getpublica\.com|frequency\.stream|"
                         r"otteravision\.com|tubi\.video|amazonaws\.com|zype\.com|klowdtv\.com|sofast\.tv|akamaized\.net|"
-                        r"brightcove\.com|cloudfront\.net)$")
+                        r"brightcove\.com|cloudfront\.net)$"
+                        r"|^ncdn-live-bfm\.pfd\.sfr\.net$")  # BFM's channels on SFR's CDN, as Free-TV lists BFM TV
 GENERIC_LABELS = {"live", "stream", "streams", "streaming", "hls", "cdn", "video", "edge", "origin", "media", "www", "play",
                   "player", "channels", "ott", "multimedia", "global", "prod", "linear", "tv", "web", "online", "server"}
+
+
+# EU Council Regulation 2022/350 and its extensions forbid broadcasting RT and Sputnik in the EU, the internet included
+SANCTIONED_NAME = re.compile(r"^(rt|russia today|sputnik)\b", re.I)
+SANCTIONED_HOST = re.compile(r"(^|\.)(rttv\.com|rt\.com|sputniknews\.com)$")
+
+
+def sanctioned(name, url):
+    return bool(SANCTIONED_NAME.match(name.strip()) or SANCTIONED_HOST.search(urllib.parse.urlsplit(url).hostname or ""))
 
 
 def official(name, url):
@@ -371,6 +382,10 @@ def self_check():
     assert not official("Live TV", "https://live.example.net/tv.m3u8")  # generic labels never count as the channel's own domain
     assert not official("TF1", "https://r.eu.cdn-redge.media/livehls/oil/freecdn/live/tf1/live.livx/playlist.m3u8")  # unofficial relay
     assert bare_ip("http://151.80.18.177:86/TF1_HD/index.m3u8") and not bare_ip("https://example.com/a.m3u8")
+    assert official("BFM Lyon", "https://ncdn-live-bfm.pfd.sfr.net/shls/LIVE$BFM_LYON/index.m3u8")
+    assert sanctioned("RT en français", "https://rt-fra.rttv.com/dvr/rtfrance/playlist.m3u8") and sanctioned("RT News", "https://rumble.com/x.m3u8")
+    assert not any(sanctioned(n, "https://example.com/x.m3u8") for n in ("RTP 1", "RTL", "RTVE", "RTS Un", "Runtime"))
+    assert not official("TMC", "https://viamotionhsi.netplus.ch/live/eds/tmc/browser-HLS8/tmc.m3u8")  # Swiss operator feed
 
 
 def main():
@@ -403,6 +418,8 @@ def main():
         if c["group"] == "TV":
             cand.append({**c, "lang": "por" if country(c["id"]) in ("pt", "br", "ao", "mz", "mo", "cv", "st", "gw", "tl") else
                          lang_of.get(c["url"]) or ("fra" if re.search(r"Fran[cç]ais|French|\bFR$", c["name"]) else "eng")})
+    for c in parse_m3u(OFFICIAL.read_text("utf-8"), "Officiel"):
+        cand.append({**c, "lang": "por" if country(c["id"]) == "pt" else "fra"})
     for c in lists["Free-TV"]:
         if c["group"] in FREETV_GROUPS:
             cand.append({**c, "lang": FREETV_GROUPS[c["group"]]})
@@ -428,13 +445,13 @@ def main():
             results.get(c["url"], {"status": "UNSUPPORTED", "detail": c["url"].split(":")[0]})
 
     # catalog: working streams only, official-looking hosts only, one card per channel with its other streams as fallbacks
-    def authorised(c):  # M3UPT and Free-TV list official streams; from iptv-org only official-looking hosts
+    def authorised(c):  # M3UPT, Free-TV and tools/official.m3u list official streams; from iptv-org only official-looking hosts
         return not bare_ip(c["url"]) and (c["source"] != "iptv-org" or official(c["name"], c["url"]))
 
     def usable(c):
         # Free-TV states no license: its entries are probed for the report but not copied into the app, the TV downloads that list itself
-        return c["probe"]["status"] in ("OK", "YOUTUBE") and c["source"] != "Free-TV" and authorised(c)
-    order = {"M3UPT": 0, "Free-TV": 1, "iptv-org": 2}
+        return c["probe"]["status"] in ("OK", "YOUTUBE") and c["source"] != "Free-TV" and authorised(c) and not sanctioned(c["name"], c["url"])
+    order = {"M3UPT": 0, "Officiel": 1, "Free-TV": 2, "iptv-org": 3}
     rows = collections.defaultdict(list)
     geo_ids = geo_flagged(cand)
     for c, alts in group(sorted((c for c in cand if usable(c)), key=lambda c: order[c["source"]])):  # stable: keeps each list's own order
