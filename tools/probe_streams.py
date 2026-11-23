@@ -36,7 +36,7 @@ LIVE_ROWS = {"Kids": "kids", "Animation": "kids", "Family": "kids", "Music": "mu
 TIMEOUT = 8
 MAIN_CHANNELS = {  # tvg-id without feed, lower case -> name, for the report's "Main channels" table
     "tf1.fr": "TF1", "france2.fr": "France 2", "france3.fr": "France 3", "france4.fr": "France 4", "france5.fr": "France 5",
-    "m6.fr": "M6", "arte.fr": "Arte", "tmc.fr": "TMC", "tfx.fr": "TFX", "w9.fr": "W9", "6ter.fr": "6ter", "lci.fr": "LCI",
+    "m6.fr": "M6", "arte.fr": "Arte", "tmc.fr": "TMC", "tfx.fr": "TFX", "w9.fr": "W9", "6ter.fr": "6ter", "lci.fr": "LCI", "franceinfo.fr": "franceinfo",
     "bfmtv.fr": "BFMTV", "cnews.fr": "CNews", "rtp1.pt": "RTP 1", "rtp2.pt": "RTP 2", "rtpnoticias.pt": "RTP Notícias",
     "sic.pt": "SIC", "sicnoticias.pt": "SIC Notícias", "tvi.pt": "TVI", "cnnportugal.pt": "CNN Portugal", "portocanal.pt": "Porto Canal",
 }
