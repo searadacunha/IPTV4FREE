@@ -36,10 +36,11 @@ def test_scan_history_hysteresis(tmp_path):
     for i in range(2):
         h.record("u", False, "timeout")
         assert h.alive("u", 3)                    # one or two failures keep it
+        assert not h.passing("u")                 # ...but it no longer counts as working
     h.record("u", False, "timeout")
     assert not h.alive("u", 3)                    # third failure in a row removes it
     h.record("u", True, "ok")
-    assert h.alive("u", 3)
+    assert h.alive("u", 3) and h.passing("u") and not h.passing("never-ok")
     h.save()
     again = ScanHistory(tmp_path / "h.json")
     assert again.alive("u", 3) and json.loads((tmp_path / "h.json").read_text())["u"]["fail_streak"] == 0

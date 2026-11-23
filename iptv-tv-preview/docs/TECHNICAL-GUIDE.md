@@ -25,11 +25,13 @@ IPTV4FREE does not host or provide any stream. It works with the playlists you c
 ## Features
 
 - **Stream validation.** Concurrent probes with per-request timeouts. HLS streams are
-  followed from the master playlist to a variant and to the newest media segment; DASH
-  manifests and direct streams are checked too. Probes send the same `User-Agent` and
-  `Referer` headers Kodi will send.
+  followed from the master playlist to a variant and to the newest media segment; a DASH
+  manifest must declare no DRM and its video initialization segment must be media; direct
+  streams are checked too. Probes send the same `User-Agent` and `Referer` headers Kodi will send.
 - **Scan history.** A stream is removed only after several failed scans in a row (3 by
-  default), so a flaky stream does not disappear and come back between updates.
+  default), so a flaky stream does not disappear and come back between updates. When a
+  channel has several streams, one that passed the last scan is kept over a sharper one that
+  failed it.
 - **Lineups.** Several sources per lineup; lineups are ordered by priority, and a stream
   listed in two lineups appears only in the first.
 - **Cleaning and deduplication.** Names lose resolution and status tags

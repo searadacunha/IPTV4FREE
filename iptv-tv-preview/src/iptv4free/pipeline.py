@@ -116,7 +116,8 @@ def run_build(config: Config) -> dict[str, tuple[Path, LineupReport]]:
         entries, report = build_lineup(
             lineup, lineup_entries(config, lineup), config,
             lambda e: history.alive(effective_url(e), config.max_failed_scans),
-            used_urls, index, numbers, nxt)
+            used_urls, index, numbers, nxt,
+            passing=lambda e: history.passing(effective_url(e)))
         problems = validate(entries)
         if problems:
             raise PipelineError(f"{lineup.id}: " + "; ".join(problems[:5]))

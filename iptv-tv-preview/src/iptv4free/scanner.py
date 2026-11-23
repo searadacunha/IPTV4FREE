@@ -1,8 +1,8 @@
 """Concurrent stream validation.
 
 A stream counts as alive only if real media bytes come back: for HLS the master playlist,
-one variant and the newest segment are fetched; DASH manifests and direct streams are
-fetched directly. Media is recognised by its container bytes, so an HTML, JSON or text
+one variant and the newest segment are fetched; for DASH the manifest (refused when it
+declares DRM) and the video initialization segment; direct streams are fetched directly. Media is recognised by its container bytes, so an HTML, JSON or text
 error page answered with HTTP 200 is not mistaken for a stream. Headers are the ones Kodi
 will send (see playlists.request_parts).
 """
@@ -13,6 +13,7 @@ import re
 import ssl
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 import zlib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -126,6 +127,52 @@ def _segment(base: str, text: str, headers: dict[str, str], timeout: float,
     return ok, f"HLS segment, {what}, {len(data)} bytes" if ok else f"HLS segment: {what}"
 
 
+def dash_init(base: str, body: bytes) -> str | None:
+    """Initialization segment URL of the best video representation up to 1080p in the last
+    (current) period, or None when the manifest gives none (SegmentBase, SegmentList)."""
+    def kids(e: ET.Element, name: str) -> list[ET.Element]:
+        return [c for c in e if c.tag.rsplit("}", 1)[-1] == name]
+
+    def join(b: str, e: ET.Element) -> str:
+        u = next((c.text.strip() for c in kids(e, "BaseURL") if c.text and c.text.strip()), None)
+        return urllib.parse.urljoin(b, u) if u else b
+
+    root = ET.fromstring(body)
+    best: tuple[tuple[bool, int], str] | None = None
+    base = join(base, root)
+    for period in kids(root, "Period")[-1:]:
+        pbase = join(base, period)
+        for aset in kids(period, "AdaptationSet"):
+            abase = join(pbase, aset)
+            for rep in kids(aset, "Representation"):
+                kind = rep.get("mimeType") or aset.get("mimeType") or aset.get("contentType") or ""
+                tpl = (kids(rep, "SegmentTemplate") or kids(aset, "SegmentTemplate")
+                       or kids(period, "SegmentTemplate") or [None])[0]
+                init = tpl.get("initialization") if tpl is not None else None
+                if "video" not in kind or not init:
+                    continue
+                h = int(rep.get("height") or aset.get("height") or 0)
+                url = urllib.parse.urljoin(join(abase, rep), init.replace("$RepresentationID$", rep.get("id", ""))
+                                           .replace("$Bandwidth$", rep.get("bandwidth", "")))
+                if best is None or (h <= 1080, h) > best[0]:
+                    best = ((h <= 1080, h), url)
+    return best[1] if best else None
+
+
+def _dash(base: str, body: bytes, headers: dict[str, str], timeout: float,
+          ctx: ssl.SSLContext) -> tuple[bool, str]:
+    # shortcut: media segments ($Number$/$Time$) are not computed; add timeline maths if live DASH
+    # streams whose init answers but whose segments are gone show up
+    if b"ContentProtection" in body:
+        return False, "DASH with DRM (ContentProtection): only a licensed player or the broadcaster's app opens it"
+    init = dash_init(base, body)
+    if not init:
+        return True, "DASH manifest (no initialization segment to check)"
+    _, data = _get(init, headers, MEDIA_PROBE_BYTES, timeout, ctx)
+    ok, what = sniff(data)
+    return ok, f"DASH initialization segment, {what}" if ok else f"DASH initialization segment: {what}"
+
+
 def _reason(e: Exception) -> str:
     return str(e) if isinstance(e, Unwatchable) else f"{type(e).__name__}: {str(e)[:120]}"
 
@@ -145,7 +192,7 @@ def probe(target: Target, timeout: float, default_user_agent: str = "") -> Resul
         final, body = _get(target.url, headers, PLAYLIST_LIMIT, timeout, ctx)
         if not body.lstrip().startswith(b"#EXTM3U"):
             if b"<MPD" in body[:4096]:
-                return Result(target.key, True, "DASH manifest")
+                return Result(target.key, *_dash(final, body, headers, timeout, ctx))
             ok, what = sniff(body)
             return Result(target.key, ok, f"direct stream, {what}, {len(body)} bytes" if ok
                           else f"direct stream: {what}")

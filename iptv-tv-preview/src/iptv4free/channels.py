@@ -51,11 +51,13 @@ def _bucket(entry: Entry, config: Config) -> str:
 def build_lineup(lineup: Lineup, entries: list[Entry], config: Config,
                  alive: Callable[[Entry], bool], used_urls: set[str],
                  epg_index: epg.EpgIndex | None, numbers: NumberBook,
-                 next_first_number: int | None = None) -> tuple[list[Entry], LineupReport]:
+                 next_first_number: int | None = None, *,
+                 passing: Callable[[Entry], bool] = lambda e: True) -> tuple[list[Entry], LineupReport]:
     """Filter, deduplicate, group, order and number one lineup.
 
     The output depends only on the set of input entries, not on their order: duplicates
-    keep the highest resolution (ties: smallest URL) and rows are sorted on stable keys.
+    keep the copy that passed the last scan (`passing`), then the highest resolution
+    (ties: smallest URL), and rows are sorted on stable keys.
     `used_urls` carries URLs taken by earlier lineups, which have priority.
     """
     rep = LineupReport(source_entries=len(entries))
@@ -75,13 +77,14 @@ def build_lineup(lineup: Lineup, entries: list[Entry], config: Config,
         consumed.add(src.url)
         name = clean_name(src.name)
         key = (epg.match_key(name), src.attrs.get("tvg-id", "").split("@")[0].lower())
-        res = resolution(src.name)
+        # a copy still "alive" after one or two failed scans must not beat a lower-resolution copy that just passed
+        score = (passing(src), resolution(src.name))
         if key in best:
             rep.duplicates += 1
-            kept_res, kept = best[key]
-            if res < kept_res or (res == kept_res and src.url >= kept.url):
+            kept_score, kept = best[key]
+            if score < kept_score or (score == kept_score and src.url >= kept.url):
                 continue
-        best[key] = (res, Entry(name=name, url=src.url, attrs=dict(src.attrs),
+        best[key] = (score, Entry(name=name, url=src.url, attrs=dict(src.attrs),
                                 options=list(src.options)))
 
     fav_keys = [epg.match_key(f) for f in lineup.favorites]
