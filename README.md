@@ -27,6 +27,12 @@ Manage live-TV sources, browse channels through a dedicated TV interface, and la
 
 ---
 
+## IPTV4FREE 2.0 — one Android TV app for everything
+
+**One tile, one app.** IPTV4FREE is now a native Android TV app ([`hub/`](hub/)) with the look of the IPTV4FREE Kodi interface — official logo, electric blue on black, a rail of sections, groups, numbered channels with logos, now/next and a live preview — that holds all of STREAMING4FREE as well: live TV (France, Portugal, Portuguese-language, free FAST platforms, international), streaming (built-in WATCHED and CINEFUSE, YouTube, official apps, public IPTV lists), films, series, sport, documentaries, favourites, resume, one search and the TV guide. Kodi is no longer needed to watch it.
+
+The update installs over the STREAMING4FREE hub (same package and signing key), so favourites, history and settings are kept. Navigation map, channel sources, guide, migration matrix, choices and rollback: **[IPTV4FREE 2.0](docs/IPTV4FREE-APP.md)**.
+
 ## IPTV4FREE — Live TV, designed for the remote
 
 **A dedicated interface for your own TV lineup.** IPTV4FREE puts live channels, country and category groups, the programme guide, favourites and search into a clean, remote-controlled Kodi experience. Behind that interface, a Python toolkit helps validate, organise and deploy IPTV playlists with repeatable safeguards.
@@ -94,6 +100,8 @@ Review the dry-run output before a real deployment. The toolkit supports safegua
 ---
 
 ## STREAMING4FREE — Your Android TV hub
+
+> Since IPTV4FREE 2.0, the hub *is* the IPTV4FREE app: everything below is inside it, and WATCHED and CINEFUSE run inside it from the same sources. Their standalone builds are kept for rollback.
 
 **One TV-focused collection of apps alongside IPTV4FREE.** STREAMING4FREE combines a native browsing and playback hub with two standalone fullscreen website launchers. Each can be built and installed independently.
 
@@ -189,7 +197,7 @@ IPTVnSTREAMING4FREE/
 │   ├── kodi-addon/          # IPTV4FREE Kodi interface
 │   ├── dist/                # Preserved preview ZIP and APK
 │   └── docs/                # Installation, screenshots and test evidence
-├── hub/                     # STREAMING4FREE native Android TV app (Kotlin / Media3)
+├── hub/                     # IPTV4FREE 2.0: the one native Android TV app (Kotlin / Media3), formerly the STREAMING4FREE hub
 ├── cinefuse/                # CINEFUSE TV WebView launcher
 ├── src/ and res/            # WATCHED Android TV launcher
 ├── tools/                   # Stream probes, TV deployment and consolidated builds
@@ -200,7 +208,9 @@ IPTVnSTREAMING4FREE/
 
 **IPTV path:** M3U/XMLTV sources → Python validation and lineup generation → authorised ADB deployment → Kodi + PVR IPTV Simple Client → IPTV4FREE interface (and optional Android TV shortcut).
 
-**Streaming path:** Public-channel catalogues / official apps → native hub with Media3 playback; WATCHED and CINEFUSE remain separate WebView launchers. **One repository does not mean one combined APK.**
+**Streaming path:** Public-channel catalogues / official apps → native hub with Media3 playback; WATCHED and CINEFUSE remain separate WebView launchers.
+
+**IPTV4FREE 2.0 (one APK):** catalog + the IPTV4FREE lists (copied at build time, kept out of git) + public lists + XMLTV guide → `hub/` → one Android TV app; WATCHED and CINEFUSE compiled in from `src/` and `cinefuse/src/`. See [IPTV4FREE 2.0](docs/IPTV4FREE-APP.md).
 
 ## Compatibility and verification
 
