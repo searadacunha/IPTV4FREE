@@ -266,6 +266,15 @@ class RightsTest {
         assertNull(rightsService("", "TV5MONDE Europe"))
     }
 
+    @Test fun rtpChannelsPointToTheFreeOfficialApp() {
+        assertEquals("RTP Play", officialApp("RTP1.pt", "RTP 1"))
+        assertEquals("RTP Play", officialApp("", "RTP 2 HD"))
+        assertEquals("RTP Play", officialApp("", "RTP Notícias (720p)"))
+        assertNull(officialApp("TVI.pt", "TVI"))
+        assertNull(officialApp("", "RTP"))
+        assertNull(rightsService("RTP1.pt", "RTP 1"))
+    }
+
     @Test fun codecNames() {
         assertEquals("E-AC-3", mimeLabel("audio/eac3"))
         assertEquals("HEVC", mimeLabel("video/hevc"))

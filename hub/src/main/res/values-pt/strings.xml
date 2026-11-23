@@ -89,6 +89,7 @@
     <string name="all_failed">As %d fontes conhecidas falharam.</string>
     <string name="no_alternative">Nenhuma outra fonte conhecida para este canal.</string>
     <string name="rights_fr">Sem direto grátis e legal a partir de Portugal: o %s não transmite este canal aqui. Grátis e legais: France 24, TV5MONDE, ARTE. Pago: o pack France TV da MEO (France 2, 3, 5).</string>
+    <string name="official_app">Direto grátis e oficial: a app %s (secção TV em direto).</string>
     <string name="ok_retry">OK: tentar de novo · Voltar: regressar</string>
     <string name="ok_external">OK: abrir no %s · Voltar: regressar</string>
     <string name="no_audio_codec">Som não suportado por esta TV (%s)</string>

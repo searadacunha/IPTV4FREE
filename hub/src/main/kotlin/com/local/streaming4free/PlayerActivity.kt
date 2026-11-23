@@ -284,6 +284,7 @@ class PlayerActivity : Activity() {
         val lines = mutableListOf(getString(R.string.play_error, channel.title, kindText(kind), where.joinToString(", ")),
             if (urls.size > 1) getString(R.string.all_failed, urls.size) else getString(R.string.no_alternative))
         rightsService(channel.id, channel.title)?.let { lines += getString(R.string.rights_fr, it) }
+        officialApp(channel.id, channel.title)?.let { lines += getString(R.string.official_app, it) }
         lines += external?.let { getString(R.string.ok_external, it.second) } ?: getString(R.string.ok_retry)
         show(lines.joinToString("\n"))
     }
