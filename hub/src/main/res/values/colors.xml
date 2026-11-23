@@ -1,9 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- same black and electric blue as the WATCHED and CINEFUSE TV tiles -->
-    <color name="background">#FF0A0E18</color>
-    <color name="brand">#FF0E1424</color>
-    <color name="accent">#FF1E78FF</color>
-    <color name="card">#FF1B2333</color>
-    <color name="card_image">#FF111827</color>
+    <!-- the IPTV4FREE Kodi interface's colours (script.iptv4free, IPTV4FREE.xml): electric blue, white, black -->
+    <color name="background">#FF02030A</color>
+    <color name="focus">#FF1030F0</color>
+    <color name="label">#FF7A90FF</color>
+    <color name="text">#FFE6EAF5</color>
+    <color name="text_dim">#FFA9B3C9</color>
+    <color name="text_sub">#FF8E98B0</color>
+    <color name="text_focus_sub">#FFDDE3FF</color>
+    <color name="row">#990D111C</color>
+    <color name="row_active">#FF1A2448</color>
+    <color name="rail">#B3000000</color>
+    <color name="box">#FF05070D</color>
+    <color name="hint">#FF6B7590</color>
+    <color name="bar">#FF3B5BFF</color>
+    <color name="bar_bg">#33FFFFFF</color>
+    <!-- kept for the shared Java activities and older builds -->
+    <color name="accent">#FF1030F0</color>
 </resources>

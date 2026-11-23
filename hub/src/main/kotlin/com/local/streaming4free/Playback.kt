@@ -2,7 +2,6 @@ package com.local.streaming4free
 
 import android.app.Activity
 import android.content.ActivityNotFoundException
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
@@ -10,14 +9,11 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.Uri
-import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
-import android.view.KeyEvent
 import android.view.View
-import android.view.WindowManager
 import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.OptIn
@@ -41,30 +37,29 @@ import androidx.media3.ui.PlayerView
 import java.util.Locale
 
 /**
- * Full-screen player for one channel (HLS, DASH, MPEG-TS, MP4), trying its known sources in turn. Hardware decoders
- * first, quality chosen from the bandwidth, audio and subtitle tracks in the player's settings. Back returns at once.
- * No browser user agent, no Referer, no DRM: a stream that needs them is reported as unavailable.
+ * The one player of IPTV4FREE (HLS, DASH, MPEG-TS, MP4), shown full screen or in the preview box of the menu, trying
+ * a channel's known sources in turn. Hardware decoders first, quality chosen from the bandwidth, audio and subtitle
+ * tracks in the player's settings. No browser user agent, no Referer, no DRM: a stream that needs them is reported
+ * as unavailable. Moved unchanged from the hub's PlayerActivity, minus the activity.
  */
 @OptIn(UnstableApi::class)
-class PlayerActivity : Activity() {
+class Playback(private val a: Activity, private val view: PlayerView, private val message: TextView, private val onEnded: () -> Unit) {
     companion object {
-        fun intent(c: Context, ch: Channel): Intent = Intent(c, PlayerActivity::class.java)
-            .putExtra("n", ch.title).putExtra("u", ch.url).putExtra("l", ch.logo).putExtra("g", ch.group)
-            .putExtra("s", ch.source).putExtra("id", ch.id).putExtra("q", ch.quality)
-            .putStringArrayListExtra("a", ArrayList(ch.alts)).putExtra("geo", ch.geo).putExtra("h", ch.headers)
         private const val STARTUP_MS = 20_000L
         private val PLAYERS = listOf("org.videolan.vlc" to "VLC", "is.xyz.mpv" to "mpv") // for codecs this TV lacks
     }
 
-    private lateinit var channel: Channel
-    private lateinit var view: PlayerView
-    private lateinit var message: TextView
+    /** The channel opened, kept while the activity is stopped so it can start again. */
+    var channel: Channel? = null
+        private set
     private var player: ExoPlayer? = null
     private var urls: List<String> = emptyList()
     private var recovery = Recovery(1)
     private var mime: String? = null // forced to HLS when the URL does not tell the format
-    @Volatile private var started = false // the current source has played at least once
-    private var failed = false
+    @Volatile var started = false // the current source has played at least once
+        private set
+    var failed = false
+        private set
     private var waiting = false // offline: waiting for the network or for OK
     private var watching = false
     private var notice: String? = null // a track this TV cannot decode
@@ -82,45 +77,51 @@ class PlayerActivity : Activity() {
         }
     }
 
-    private val connectivity get() = getSystemService(ConnectivityManager::class.java)
+    private val connectivity get() = a.getSystemService(ConnectivityManager::class.java)
     private val network = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(n: Network) { handler.post(::online) }
         override fun onCapabilitiesChanged(n: Network, caps: NetworkCapabilities) { handler.post(::online) }
     }
 
-    override fun attachBaseContext(base: Context) = super.attachBaseContext(Store.localized(base))
-
-    override fun onCreate(b: Bundle?) {
-        super.onCreate(b)
-        setContentView(R.layout.player)
-        view = findViewById(R.id.player_view)
-        message = findViewById(R.id.message)
-        val i = intent
-        channel = Channel(i.getStringExtra("n").orEmpty(), i.getStringExtra("u").orEmpty(), i.getStringExtra("l").orEmpty(),
-            i.getStringExtra("g").orEmpty(), i.getStringExtra("s").orEmpty(), i.getStringExtra("id").orEmpty(), i.getStringExtra("q").orEmpty(),
-            i.getStringArrayListExtra("a").orEmpty(), i.getBooleanExtra("geo", false), i.getBooleanExtra("h", false))
+    init {
         view.setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
         view.setShowSubtitleButton(true)
-        view.setShowPreviousButton(false) // one stream at a time: no playlist to move through
+        view.setShowPreviousButton(false) // zapping is done by the menu's list, not by a playlist
         view.setShowNextButton(false)
         view.controllerAutoShow = false
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
-    override fun onStart() {
-        super.onStart()
+    val playing get() = player != null
+    /** Stopped on an error or waiting for the network: OK means "try again" (see [ok]). */
+    val stuck get() = failed || waiting
+    val paused get() = player?.playWhenReady == false
+
+    fun togglePause() { player?.let { it.playWhenReady = !it.playWhenReady } }
+
+    /** Opens [ch] from its first source, with every counter reset. */
+    fun open(ch: Channel) {
+        release()
+        channel = ch
         restart()
     }
 
-    override fun onStop() {
+    /** Stops and forgets the channel. */
+    fun stop() {
         release()
-        super.onStop()
+        channel = null
+        message.visibility = View.GONE
     }
+
+    /** Activity stopped: the player goes, the channel stays for [resume]. */
+    fun suspend() = release()
+
+    fun resume() { if (player == null && channel != null) restart() }
 
     /** From the first source, with every counter reset: on opening, and on OK after a final error. */
     private fun restart() {
+        val ch = channel ?: return
         val m3upt = Playlists.SOURCES.first { it.name == "M3UPT" }
-        urls = candidates(channel, Catalog.all(this), Playlists.loaded(m3upt), Store::health, System.currentTimeMillis())
+        urls = candidates(ch, Catalog.all(a), Playlists.loaded(m3upt), Store::health, System.currentTimeMillis())
         recovery = Recovery(urls.size)
         failed = false
         waiting = false
@@ -131,13 +132,14 @@ class PlayerActivity : Activity() {
     }
 
     private fun play() {
-        show(getString(R.string.opening, channel.title))
+        val ch = channel ?: return
+        show(a.getString(R.string.opening, ch.title))
         val http = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true) // many lists still point to http:// that redirects to https://
             .setConnectTimeoutMs(10_000).setReadTimeoutMs(15_000)
-        val sources = DefaultMediaSourceFactory(DefaultDataSource.Factory(this, http))
+        val sources = DefaultMediaSourceFactory(DefaultDataSource.Factory(a, http))
             .setLoadErrorHandlingPolicy(loadErrors)
-        val p = ExoPlayer.Builder(this, DefaultRenderersFactory(this).setEnableDecoderFallback(true))
+        val p = ExoPlayer.Builder(a, DefaultRenderersFactory(a).setEnableDecoderFallback(true))
             .setMediaSourceFactory(sources)
             .setStuckBufferingDetectionTimeoutMs(30_000) // the default is 10 minutes
             .build()
@@ -159,7 +161,7 @@ class PlayerActivity : Activity() {
         started = false
         notice = null
         quality(0)
-        Log.i(TAG, "${channel.title}: source ${recovery.source + 1}/${urls.size} ${url.substringBefore('?')}")
+        Log.i(TAG, "${channel?.title}: source ${recovery.source + 1}/${urls.size} ${url.substringBefore('?')}")
         val item = MediaItem.Builder().setUri(url).setMimeType(mime).build()
         val resume = Store.position(url)
         if (resume > 0) p.setMediaItem(item, resume) else p.setMediaItem(item)
@@ -214,13 +216,13 @@ class PlayerActivity : Activity() {
                 if (!started) {
                     started = true
                     val url = urls[recovery.source]
-                    Log.i(TAG, "${channel.title}: source ${recovery.source + 1} plays (${Uri.parse(url).host})")
-                    Store.addHistory(channel)
+                    Log.i(TAG, "${channel?.title}: source ${recovery.source + 1} plays (${Uri.parse(url).host})")
+                    channel?.let(Store::addHistory)
                     Store.recordOk(url)
                 }
             } else if (state == Player.STATE_ENDED) {
                 Store.setPosition(urls[recovery.source], 0)
-                finish()
+                handler.post(onEnded)
             }
         }
 
@@ -228,8 +230,8 @@ class PlayerActivity : Activity() {
         override fun onTracksChanged(tracks: Tracks) {
             val type = listOf(C.TRACK_TYPE_AUDIO, C.TRACK_TYPE_VIDEO).firstOrNull { tracks.containsType(it) && !tracks.isTypeSupported(it, true) } ?: return
             val format = tracks.groups.first { it.type == type }.getTrackFormat(0)
-            val text = getString(if (type == C.TRACK_TYPE_AUDIO) R.string.no_audio_codec else R.string.no_video_codec, mimeLabel(format.sampleMimeType ?: format.codecs))
-            Log.i(TAG, "${channel.title}: $text")
+            val text = a.getString(if (type == C.TRACK_TYPE_AUDIO) R.string.no_audio_codec else R.string.no_video_codec, mimeLabel(format.sampleMimeType ?: format.codecs))
+            Log.i(TAG, "${channel?.title}: $text")
             notice = text
             show(text)
         }
@@ -242,10 +244,11 @@ class PlayerActivity : Activity() {
                 handler.post { load() } // not from inside the player's own callback
                 return
             }
+            val ch = channel ?: return
             val causes = generateSequence<Throwable>(e) { it.cause }.toList()
             val http = causes.filterIsInstance<HttpDataSource.InvalidResponseCodeException>().firstOrNull()
             val kind = classify(e.errorCode, http?.responseCode, http?.headerFields.orEmpty(), http?.responseBody,
-                offline(), channel.geo && urls[recovery.source].let { it == channel.url || it in channel.alts }, causes.any { it is StuckPlayerException }, started)
+                offline(), ch.geo && urls[recovery.source].let { it == ch.url || it in ch.alts }, causes.any { it is StuckPlayerException }, started)
             fail(kind, http?.let { "HTTP ${it.responseCode}" } ?: e.errorCodeName)
         }
     }
@@ -253,22 +256,22 @@ class PlayerActivity : Activity() {
     private fun fail(kind: Kind, detail: String) {
         val p = player ?: return
         val url = urls[recovery.source]
-        Log.i(TAG, "${channel.title}: source ${recovery.source + 1}/${urls.size} ${url.substringBefore('?')} failed: $kind $detail")
+        Log.i(TAG, "${channel?.title}: source ${recovery.source + 1}/${urls.size} ${url.substringBefore('?')} failed: $kind $detail")
         when (val step = recovery.fail(kind, p.isCurrentMediaItemLive, SystemClock.elapsedRealtime(), started)) {
             is Step.Retry -> {
-                if (step.delayMs > 0) show(getString(R.string.reconnecting, recovery.tries, recovery.limit))
+                if (step.delayMs > 0) show(a.getString(R.string.reconnecting, recovery.tries, recovery.limit))
                 if (step.quality > 0) quality(step.quality)
                 handler.postDelayed({ retry(step.toLiveEdge) }, step.delayMs)
             }
             is Step.Next -> {
                 if (!started) Store.recordFail(url, kind) // a source that played here is not greyed for a later drop
-                show(getString(R.string.switching, step.source, reason(kind, detail), step.source + 1, urls.size))
+                show(a.getString(R.string.switching, step.source, reason(kind, detail), step.source + 1, urls.size))
                 mime = null
                 handler.post { load() }
             }
             Step.WaitForNetwork -> {
                 waiting = true
-                show(getString(R.string.waiting_network, channel.title))
+                show(a.getString(R.string.waiting_network, channel?.title.orEmpty()))
                 watch()
             }
             Step.GiveUp -> {
@@ -280,30 +283,32 @@ class PlayerActivity : Activity() {
 
     /** Every source failed: say why in words, with the HTTP code and host, and what is left to try. */
     private fun giveUp(kind: Kind, detail: String, url: String) {
+        val ch = channel ?: return
         failed = true
         external = if (kind == Kind.CODEC) PLAYERS.firstOrNull { installed(it.first) } else null
         // Official app handoff is opt-in. Access depends on the subscriber's actual
         // French residence and EU travel eligibility; no extracted stream is used.
-        provider = if (external == null && rightsService(channel.id, channel.title) != null)
-            APPS.firstOrNull { it.id == "molotov" && it.launchIntent(packageManager) != null }
+        provider = if (external == null && rightsService(ch.id, ch.title) != null)
+            APPS.firstOrNull { it.id == "molotov" && it.launchIntent(a) != null }
         else null
         val where = listOf(detail.takeIf { it.startsWith("HTTP") }.orEmpty(), Uri.parse(url).host.orEmpty()).filter { it.isNotEmpty() }
-        val lines = mutableListOf(getString(R.string.play_error, channel.title, kindText(kind), where.joinToString(", ")),
-            if (urls.size > 1) getString(R.string.all_failed, urls.size) else getString(R.string.no_alternative))
-        rightsService(channel.id, channel.title)?.let { lines += getString(R.string.rights_fr, it) }
-        officialApp(channel.id, channel.title)?.let { lines += getString(R.string.official_app, it) }
-        provider?.let { lines += getString(R.string.molotov_portability) }
+        val lines = mutableListOf(a.getString(R.string.play_error, ch.title, kindText(kind), where.joinToString(", ")),
+            if (urls.size > 1) a.getString(R.string.all_failed, urls.size) else a.getString(R.string.no_alternative))
+        if (ch.headers) lines += a.getString(R.string.headers_needed)
+        rightsService(ch.id, ch.title)?.let { lines += a.getString(R.string.rights_fr, it) }
+        officialApp(ch.id, ch.title)?.let { lines += a.getString(R.string.official_app, it) }
+        provider?.let { lines += a.getString(R.string.molotov_portability) }
         lines += when {
-            external != null -> getString(R.string.ok_external, external!!.second)
-            provider != null -> getString(R.string.ok_provider, provider!!.title)
-            else -> getString(R.string.ok_retry)
+            external != null -> a.getString(R.string.ok_external, external!!.second)
+            provider != null -> a.getString(R.string.ok_provider, provider!!.title)
+            else -> a.getString(R.string.ok_retry)
         }
         show(lines.joinToString("\n"))
     }
 
     private fun reason(kind: Kind, detail: String) = if (detail.startsWith("HTTP")) detail else kindText(kind)
 
-    private fun kindText(kind: Kind) = getString(when (kind) {
+    private fun kindText(kind: Kind) = a.getString(when (kind) {
         Kind.GEO -> R.string.kind_geo
         Kind.FORBIDDEN -> R.string.kind_forbidden
         Kind.NOT_FOUND -> R.string.kind_not_found
@@ -317,7 +322,7 @@ class PlayerActivity : Activity() {
         Kind.OTHER -> R.string.kind_other
     })
 
-    private fun installed(pkg: String) = try { packageManager.getApplicationInfo(pkg, 0); true } catch (e: PackageManager.NameNotFoundException) { false }
+    private fun installed(pkg: String) = try { a.packageManager.getApplicationInfo(pkg, 0); true } catch (e: PackageManager.NameNotFoundException) { false }
 
     /** The TV itself has no working network, as Android sees it. */
     private fun offline(): Boolean = try {
@@ -349,7 +354,7 @@ class PlayerActivity : Activity() {
         if (!waiting || offline()) return
         waiting = false
         unwatch()
-        show(getString(R.string.opening, channel.title))
+        show(a.getString(R.string.opening, channel?.title.orEmpty()))
         retry(player?.isCurrentMediaItemLive == true)
     }
 
@@ -358,37 +363,35 @@ class PlayerActivity : Activity() {
         message.visibility = View.VISIBLE
     }
 
-    /** The player view gets the remote's arrows, OK and media keys even when nothing is focused; OK retries after an error. */
-    override fun dispatchKeyEvent(e: KeyEvent): Boolean {
-        if ((failed || waiting) && e.keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
-            if (e.action == KeyEvent.ACTION_UP) {
-                val ext = external
-                if (failed && ext != null) openExternal(ext.first)
-                else if (failed && provider != null) openProvider(provider!!)
-                else { release(); restart() }
-            }
-            return true
+    /** OK after a final error or while offline: the other player, the official app, or a new try. False when OK means nothing here. */
+    fun ok(): Boolean {
+        if (!failed && !waiting) return false
+        val ext = external
+        when {
+            failed && ext != null -> openExternal(ext.first)
+            failed && provider != null -> openProvider(provider!!)
+            else -> { release(); restart() }
         }
-        return view.dispatchKeyEvent(e) || super.dispatchKeyEvent(e)
+        return true
     }
 
     /** Open the licensed app home screen; the provider checks entitlements itself. */
     private fun openProvider(app: App) {
-        val launch = app.launchIntent(packageManager)
+        val launch = app.launchIntent(a)
         if (launch == null) {
-            Toast.makeText(this, R.string.not_installed, Toast.LENGTH_LONG).show()
+            Toast.makeText(a, R.string.not_installed, Toast.LENGTH_LONG).show()
             return
         }
         try {
-            startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            a.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: ActivityNotFoundException) {
-            Toast.makeText(this, R.string.not_installed, Toast.LENGTH_LONG).show()
+            Toast.makeText(a, R.string.not_installed, Toast.LENGTH_LONG).show()
         }
     }
 
     private fun openExternal(pkg: String) = try {
-        startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(urls[recovery.source]), "video/*").setPackage(pkg))
+        a.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(urls[recovery.source]), "video/*").setPackage(pkg))
     } catch (e: ActivityNotFoundException) {
-        Toast.makeText(this, R.string.not_installed, Toast.LENGTH_LONG).show()
+        Toast.makeText(a, R.string.not_installed, Toast.LENGTH_LONG).show()
     }
 }

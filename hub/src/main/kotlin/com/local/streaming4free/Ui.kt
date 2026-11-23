@@ -5,112 +5,113 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
-import androidx.leanback.widget.DiffCallback
-import androidx.leanback.widget.ImageCardView
-import androidx.leanback.widget.Presenter
+import androidx.recyclerview.widget.RecyclerView
 import coil.dispose
 import coil.load
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-/** Cards keep their identity across refreshes, so focus stays put; channel cards are always redrawn (dead or alive). */
-val DIFF = object : DiffCallback<Item>() {
-    override fun areItemsTheSame(a: Item, b: Item) = a.key == b.key
-    override fun areContentsTheSame(a: Item, b: Item) = a == b && a !is Channel
-}
+private val CLOCK = SimpleDateFormat("HH:mm", Locale.ROOT)
 
-class CardPresenter : Presenter() {
-    override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {
-        val c = parent.context
-        val idle = ContextCompat.getColor(c, R.color.card)
-        val focused = ContextCompat.getColor(c, R.color.accent)
-        val card = object : ImageCardView(c) {
-            override fun setSelected(selected: Boolean) {
-                setInfoAreaBackgroundColor(if (selected) focused else idle)
-                super.setSelected(selected)
-            }
-        }
-        val d = c.resources.displayMetrics.density
-        card.setMainImageDimensions((176 * d).toInt(), (99 * d).toInt())
-        card.setMainImageScaleType(ImageView.ScaleType.FIT_CENTER)
-        card.mainImageView?.setBackgroundColor(ContextCompat.getColor(c, R.color.card_image))
-        card.setInfoAreaBackgroundColor(idle)
-        card.isFocusable = true
-        card.isFocusableInTouchMode = true
-        return ViewHolder(card)
+fun hm(t: Long): String = synchronized(CLOCK) { CLOCK.format(Date(t)) }
+fun range(p: Guide.Prog) = hm(p.start) + " – " + hm(p.stop)
+
+/** The rows of one column: the rail, the groups, the content or a channel's programme. */
+class Rows(private val layout: Int, private val bind: (View, Item, Int) -> Unit, private val onFocus: (Int) -> Unit,
+           private val onClick: (Int) -> Unit, private val onLong: (Int) -> Unit) : RecyclerView.Adapter<Rows.Holder>() {
+    class Holder(v: View) : RecyclerView.ViewHolder(v)
+
+    var items: List<Item> = emptyList()
+        private set
+    /** The row this column has open (Kodi's "active" edge); -1 for none. */
+    var active = -1
+        private set
+    private var rv: RecyclerView? = null
+
+    override fun onAttachedToRecyclerView(r: RecyclerView) { rv = r }
+
+    fun set(list: List<Item>, active: Int) {
+        items = list
+        this.active = active
+        notifyDataSetChanged()
     }
 
-    override fun onBindViewHolder(vh: ViewHolder, item: Any?) {
-        val card = vh.view as ImageCardView
-        val c = card.context
-        val i = item as Item
-        card.titleText = i.title
-        card.contentText = subtitle(c, i)
-        card.alpha = if (i is Channel && Store.isDead(i.url)) 0.45f else 1f
-        when (i) {
-            is Channel -> card.mainImageView?.load(i.logo.ifEmpty { null }) {
-                placeholder(R.drawable.ph_tv)
-                error(R.drawable.ph_tv)
-                fallback(R.drawable.ph_tv)
-            }
-            is App -> card.mainImage = i.installedPackage(c.packageManager)?.let { p ->
-                c.packageManager.getApplicationBanner(p) ?: c.packageManager.getApplicationIcon(p)
-            } ?: ContextCompat.getDrawable(c, R.drawable.ph_app)
-            is Folder -> card.mainImage = ContextCompat.getDrawable(c, R.drawable.ph_folder)
-            is Setting -> card.mainImage = ContextCompat.getDrawable(c, R.drawable.ph_setting)
-        }
-        card.setOnLongClickListener { // long press on OK
-            if (i is Channel || i is App) {
-                val added = Store.toggleFavorite(i)
-                Toast.makeText(c, if (added) R.string.fav_added else R.string.fav_removed, Toast.LENGTH_SHORT).show()
-            }
-            true
-        }
+    fun activate(p: Int) {
+        if (p == active) return
+        val old = active
+        active = p
+        rv?.findViewHolderForAdapterPosition(old)?.itemView?.isActivated = false
+        rv?.findViewHolderForAdapterPosition(p)?.itemView?.isActivated = true
     }
 
-    override fun onUnbindViewHolder(vh: ViewHolder) {
-        val card = vh.view as ImageCardView
-        card.mainImageView?.dispose()
-        card.mainImage = null
-        card.setOnLongClickListener(null)
+    /** Rebinds the rows on screen (favorite badge, dead stream, playing marker, guide), not the ones off screen. */
+    fun redraw() = notifyItemRangeChanged(0, itemCount)
+
+    override fun getItemCount() = items.size
+
+    override fun onCreateViewHolder(parent: ViewGroup, type: Int): Holder {
+        val v = LayoutInflater.from(parent.context).inflate(layout, parent, false)
+        val h = Holder(v)
+        v.setOnFocusChangeListener { _, has -> if (has) h.bindingAdapterPosition.takeIf { it >= 0 }?.let(onFocus) }
+        v.setOnClickListener { h.bindingAdapterPosition.takeIf { it >= 0 }?.let(onClick) }
+        v.setOnLongClickListener { h.bindingAdapterPosition.takeIf { it >= 0 }?.let(onLong); true } // long press on OK
+        return h
     }
 
-    private fun subtitle(c: Context, i: Item): String = when (i) {
-        is Channel -> if (Store.isDead(i.url)) c.getString(R.string.dead) else {
-            val catalog = Catalog.all(c)
-            val sources = candidates(i, catalog, Playlists.loaded(Playlists.SOURCES.first { it.name == "M3UPT" })).size
-            val geo = i.geo && catalog.none { it.url == i.url } // a catalog channel played from here: the list's flag is about elsewhere
-            listOf(if (geo) c.getString(R.string.hint_geo) else "", if (i.headers) c.getString(R.string.hint_headers) else "",
-                if (sources > 1) c.getString(R.string.hint_sources, sources) else "",
-                i.quality.substringBefore(' '), i.group.substringBefore(';'), i.source).filter { it.isNotEmpty() }.joinToString(" · ")
-        }
-        is App -> if (i.installedPackage(c.packageManager) != null) c.getString(i.terms.label) + " · " + c.getString(i.desc)
-            else c.getString(R.string.to_install) + " · " + c.getString(i.terms.label)
-        is Folder -> c.getString(R.string.channels_count, i.channels.size)
-        is Setting -> i.value
+    override fun onBindViewHolder(h: Holder, p: Int) {
+        h.itemView.isActivated = p == active
+        bind(h.itemView, items[p], p)
+    }
+
+    override fun onViewRecycled(h: Holder) {
+        h.itemView.findViewById<ImageView?>(R.id.logo)?.dispose()
     }
 }
 
-/** What OK on a card does. Settings are handled by the page that shows them. */
-fun open(a: Activity, i: Item) {
-    when (i) {
-        is Channel -> if (i.isYouTube) openYouTube(a, i) else a.startActivity(PlayerActivity.intent(a, i))
-        is App -> openApp(a, i)
-        is Folder -> a.startActivity(GridActivity.intent(a, i))
-        is Setting -> {}
-    }
+/** A channel row or card image: its logo, else the TV placeholder. */
+fun ImageView.logo(url: String) = load(url.ifEmpty { null }) {
+    placeholder(R.drawable.ph_tv)
+    error(R.drawable.ph_tv)
+    fallback(R.drawable.ph_tv)
 }
 
-private fun openApp(a: Activity, app: App) {
-    val launch = app.launchIntent(a.packageManager)
+fun ImageView.appArt(c: Context, app: App) {
+    dispose()
+    setImageDrawable(when {
+        app.site != null -> ContextCompat.getDrawable(c, if (app.id == "watched") R.drawable.banner_watched else R.drawable.banner_cinefuse) // their former tiles
+        else -> app.installedPackage(c.packageManager)?.let { p -> c.packageManager.getApplicationBanner(p) ?: c.packageManager.getApplicationIcon(p) }
+            ?: ContextCompat.getDrawable(c, R.drawable.ph_app)
+    })
+}
+
+fun TextView.show(text: CharSequence?) {
+    this.text = text
+    visibility = if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
+}
+
+fun ProgressBar.show(percent: Int?) {
+    visibility = if (percent == null) View.INVISIBLE else View.VISIBLE
+    progress = percent ?: 0
+}
+
+/** OK on an app: built-in site, installed app, or its Play Store page (one press on Install). */
+fun openApp(a: Activity, app: App) {
+    val launch = app.launchIntent(a)
     when {
         launch != null -> {
             Store.addHistory(app)
-            a.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            a.startActivity(if (app.site != null) launch else launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
-        app.onPlayStore -> try { // the TV's Play Store opens on the app's page: one press on Install
+        app.onPlayStore -> try {
             a.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + app.packages[0])))
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(a, R.string.no_store, Toast.LENGTH_LONG).show()
@@ -119,8 +120,8 @@ private fun openApp(a: Activity, app: App) {
     }
 }
 
-/** YouTube pages go to SmartTube when installed (no ads), else to the YouTube app. */
-private fun openYouTube(a: Activity, ch: Channel) {
+/** YouTube pages go to SmartTube when installed (no ads), else to the YouTube app: Google allows no other player. */
+fun openYouTube(a: Activity, ch: Channel) {
     val pm = a.packageManager
     val pkg = APPS.filter { it.id == "smarttube" || it.id == "youtube" }.firstNotNullOfOrNull { it.installedPackage(pm) }
     if (pkg == null) {

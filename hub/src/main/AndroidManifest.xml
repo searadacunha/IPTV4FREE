@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- no microphone: voice search goes through the TV's own recognizer; the network state tells a dead stream from the TV being offline -->
+    <!-- no microphone: voice search goes through the TV's own keyboard; the network state tells a dead stream from the TV being offline -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
-    <!-- the hub only looks up which TV apps are installed, to open them; VLC and mpv play codecs the TV lacks -->
+    <!-- only to see which TV apps are installed, to open them; VLC and mpv play codecs the TV lacks -->
     <queries>
         <package android:name="org.videolan.vlc" />
         <package android:name="tv.molotov.app" />
@@ -24,17 +24,19 @@
 
     <!-- usesCleartextTraffic: many public IPTV streams are still plain http -->
     <application
-        android:label="STREAMING4FREE"
+        android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:banner="@drawable/banner"
         android:allowBackup="false"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.Hub">
+        <!-- the one entry point: menu, player (full screen or preview) and guide -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="landscape"
+            android:windowSoftInputMode="adjustNothing|stateHidden"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|density">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -42,12 +44,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".GridActivity" android:screenOrientation="landscape" />
-        <activity android:name=".SearchActivity" android:screenOrientation="landscape" />
+        <!-- WATCHED and CINEFUSE, formerly apps of their own (same sources, ../src and ../cinefuse/src): inside IPTV4FREE only -->
         <activity
-            android:name=".PlayerActivity"
+            android:name="com.local.watchedtv.MainActivity"
+            android:exported="false"
             android:screenOrientation="landscape"
-            android:theme="@style/Theme.Hub.Player"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|density" />
+        <activity
+            android:name="com.local.cinefusetv.MainActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|density" />
     </application>
 </manifest>
