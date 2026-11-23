@@ -91,6 +91,24 @@ def test_groups_split_by_country_and_category():
     assert core.split_group("All channels") == ("", "All channels")
 
 
+def test_groups_follow_the_hub_rubrics():
+    # Kodi's order on the TV (23/11): France, Portugal, then Monde lists, hub rows interleaved
+    kodi = ["Toutes les chaînes", "France · Favoris", "France · Toutes", "TV en direct · Chaînes en français",
+            "Sport · Sport en français", "Séries · Chaînes de séries en français", "Films · Chaînes de films en français",
+            "Portugal · Favoris", "Portugal · Toutes", "TV en direct · Chaînes portugaises", "Monde · Info",
+            "TV en direct · Infos du monde", "Films · Chaînes de films, autres langues", "Monde · Sport",
+            "Films · Chaînes de films en portugais", "TV en direct · En portugais (Brésil, Afrique, Macao)"]
+    groups = [{"channelgroupid": i, "label": label} for i, label in enumerate(kodi)]
+    ordered = [g["label"] for g in sorted(groups, key=core.group_rank)]
+    assert ordered == [
+        "Toutes les chaînes", "France · Favoris", "Portugal · Favoris",
+        "Films · Chaînes de films en portugais", "Films · Chaînes de films en français",
+        "Films · Chaînes de films, autres langues", "Séries · Chaînes de séries en français",
+        "TV en direct · Chaînes portugaises", "TV en direct · En portugais (Brésil, Afrique, Macao)",
+        "TV en direct · Chaînes en français", "TV en direct · Infos du monde", "Sport · Sport en français",
+        "France · Toutes", "Portugal · Toutes", "Monde · Info", "Monde · Sport"]
+
+
 def test_channels_are_paged_and_normalized():
     first, nxt, total = core.channels_page(fake_rpc, 1, 0, 120)
     assert (len(first), nxt, total) == (120, 120, 251)

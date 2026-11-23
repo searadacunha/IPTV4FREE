@@ -44,8 +44,26 @@ def wait_for_pvr(transport, wait, timeout: float = 30.0, step: float = 0.5) -> b
 
 def channel_groups(transport) -> list[dict]:
     result = rpc_call(transport, "PVR.GetChannelGroups", {"channeltype": "tv"})
-    return [g for g in result.get("channelgroups", [])
-            if isinstance(g, dict) and isinstance(g.get("channelgroupid"), int)]
+    return sorted((g for g in result.get("channelgroups", [])
+                   if isinstance(g, dict) and isinstance(g.get("channelgroupid"), int)), key=group_rank)
+
+
+# The STREAMING4FREE hub's rubrics, in its order; groups are named "<Rubrique> · <ligne>".
+CATEGORIES = ["films", "séries", "tv en direct", "sport", "documentaires"]
+
+
+def group_rank(group: dict) -> tuple[int, int]:
+    """All channels, then the favourites, then the hub's rubrics (Portuguese rows, then French,
+    then the rest, as in the hub), then every other group (the raw lists) in Kodi's order."""
+    if is_all_group(group):
+        return (0, 0)
+    head, category = split_group(group.get("label", ""))
+    if category.casefold() == "favoris":
+        return (1, 0)
+    if head.casefold() in CATEGORIES:
+        text = category.casefold()
+        return (2 + CATEGORIES.index(head.casefold()), 0 if "portug" in text else 1 if "fran" in text else 2)
+    return (2 + len(CATEGORIES), 0)
 
 
 def is_all_group(group: dict) -> bool:
