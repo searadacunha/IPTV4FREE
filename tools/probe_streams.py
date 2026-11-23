@@ -4,7 +4,7 @@
 Each candidate stream is opened the way the hub's player opens it (plain GET, platform user agent, no
 Referer/Origin, no DRM key): playlist, best video variant up to 1080p (then at most the next ones when it fails),
 then the first bytes of a media segment, which must be audio/video data, not a page (an AES-128 one: binary, not
-text; its key is not fetched). DASH is checked on the manifest only. Only streams that answer from here end up in the
+text; its key is not fetched). DASH: no DRM, and the video initialization segment must be MP4. Only streams that answer from here end up in the
 catalog, so run it from the network the TV uses. Each catalog channel also keeps up to 3 other working streams of the
 same channel (same tvg-id, quality feeds such as @SD and @HD merged) as fallbacks.
 
@@ -14,6 +14,7 @@ same channel (same tvg-id, quality feeds such as @SD and @HD merged) as fallback
 Writes hub/src/main/assets/catalog.json and docs/SOURCES.md. Standard library only.
 """
 import argparse, collections, concurrent.futures, datetime, ipaddress, json, re, sys, threading, urllib.parse, urllib.request, zlib
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -32,10 +33,17 @@ THEMES = {"Sports": "sport", "Documentary": "docs", "Science": "docs", "Outdoor"
           "Movies": "movies", "Classic": "movies", "Series": "series"}  # iptv-org category -> hub category
 LIVE_ROWS = {"Kids": "kids", "Animation": "kids", "Family": "kids", "Music": "music", "News": "news"}
 TIMEOUT = 8
+MAIN_CHANNELS = {  # tvg-id without feed, lower case -> name, for the report's "Main channels" table
+    "tf1.fr": "TF1", "france2.fr": "France 2", "france3.fr": "France 3", "france4.fr": "France 4", "france5.fr": "France 5",
+    "m6.fr": "M6", "arte.fr": "Arte", "tmc.fr": "TMC", "tfx.fr": "TFX", "w9.fr": "W9", "6ter.fr": "6ter", "lci.fr": "LCI",
+    "bfmtv.fr": "BFMTV", "cnews.fr": "CNews", "rtp1.pt": "RTP 1", "rtp2.pt": "RTP 2", "rtpnoticias.pt": "RTP Notícias",
+    "sic.pt": "SIC", "sicnoticias.pt": "SIC Notícias", "tvi.pt": "TVI", "cnnportugal.pt": "CNN Portugal", "portocanal.pt": "Porto Canal",
+}
 WS = b"\xef\xbb\xbf \r\n\t"
 VIDEO = re.compile(r"avc1|avc3|hvc1|hev1|vp09|av01|mp4v")
 THROTTLED = {"HTTP403", "VARIANT0", "SEGMENT0", "VARIANT429", "SEGMENT429"}  # timeouts, refusals, rate limits
 LIMIT = 262144  # bytes read from a playlist
+DRM_PROP = re.compile(r"license|drm|clearkey|widevine|playready", re.I)  # also drm_legacy=org.w3.clearkey|... and drm={...}
 
 
 def fetch(url, limit=LIMIT):
@@ -73,7 +81,7 @@ def parse_m3u(text, source):
                    "headers": "http-user-agent" in attrs or "http-referrer" in attrs, "drm": False}
         elif cur and line.startswith("#EXTVLCOPT:http-"):
             cur["headers"] = True
-        elif cur and line.startswith("#KODIPROP") and "license" in line:
+        elif cur and line.startswith("#KODIPROP") and DRM_PROP.search(line):
             cur["drm"] = True
         elif cur and line and not line.startswith("#"):
             cur["url"] = line
@@ -115,13 +123,67 @@ def probe(url):
     if b"<MPD" in body[:4096]:
         if b"ContentProtection" in body:
             return {"status": "DRM", "detail": "DASH with ContentProtection"}
-        return {"status": "OK", "detail": "DASH manifest (segments not fetched)"}
+        return probe_dash(final, body)
     kind = media(ctype, body)
     if kind == "AAC":
         return {"status": "AUDIO", "detail": "direct audio-only stream"}
     if kind:
         return {"status": "OK", "detail": "direct " + kind}
     return {"status": "WEBPAGE", "detail": ctype[:40] or "not audio or video data"}
+
+
+def dash_init(base, body):
+    """URL of the initialization segment of the best video representation up to 1080p, in the last period (the
+    current one of a live manifest). None when the manifest gives none: SegmentBase, SegmentList, a template without
+    initialization. Raises ET.ParseError on a manifest that is not XML."""
+    def tag(e):
+        return e.tag.rsplit("}", 1)[-1]
+
+    def kids(e, name):
+        return [c for c in e if tag(c) == name]
+
+    def join(b, e):
+        u = next((c.text.strip() for c in kids(e, "BaseURL") if c.text and c.text.strip()), None)
+        return urllib.parse.urljoin(b, u) if u else b
+
+    root = ET.fromstring(body)
+    best, base = None, join(base, root)
+    for period in kids(root, "Period")[-1:]:
+        pbase = join(base, period)
+        for aset in kids(period, "AdaptationSet"):
+            abase = join(pbase, aset)
+            for rep in kids(aset, "Representation"):
+                kind = rep.get("mimeType") or aset.get("mimeType") or aset.get("contentType") or ""
+                tpl = (kids(rep, "SegmentTemplate") or kids(aset, "SegmentTemplate") or kids(period, "SegmentTemplate") or [None])[0]
+                init = tpl.get("initialization") if tpl is not None else None
+                if "video" not in kind or not init:
+                    continue
+                h = int(rep.get("height") or aset.get("height") or 0)
+                url = urllib.parse.urljoin(join(abase, rep), init.replace("$RepresentationID$", rep.get("id", ""))
+                                           .replace("$Bandwidth$", rep.get("bandwidth", "")))
+                if best is None or (h <= 1080, h) > best[0]:
+                    best = ((h <= 1080, h), url)
+    return best and best[1]
+
+
+def probe_dash(base, body):
+    """A DASH manifest passes when the initialization segment of its video answers with MP4 data.
+    shortcut: media segments ($Number$, $Time$) are not computed, so a live stream whose init answers but whose
+    segments are gone still passes; add timeline maths if such streams show up."""
+    try:
+        init = dash_init(base, body)
+    except ET.ParseError:
+        return {"status": "MANIFEST_FORMAT", "detail": "DASH manifest is not XML"}
+    if not init:
+        return {"status": "OK", "detail": "DASH manifest (no initialization segment to check)"}
+    code, _, ctype, data = fetch(init, 32768)
+    if code == 204 or code == 200 and not data:
+        return {"status": "EMPTY", "detail": "DASH initialization segment without a body"}
+    if code != 200:
+        return {"status": "HTTP403" if code in (403, 451) else "SEGMENT" + str(code), "detail": "DASH initialization segment"}
+    if media(ctype, data) != "MP4":
+        return {"status": "SEGMENT_FORMAT", "detail": "DASH initialization segment is not MP4"}
+    return {"status": "OK", "detail": "DASH MP4"}
 
 
 def probe_hls(base, text, depth=0):
@@ -366,10 +428,12 @@ def main():
             results.get(c["url"], {"status": "UNSUPPORTED", "detail": c["url"].split(":")[0]})
 
     # catalog: working streams only, official-looking hosts only, one card per channel with its other streams as fallbacks
+    def authorised(c):  # M3UPT and Free-TV list official streams; from iptv-org only official-looking hosts
+        return not bare_ip(c["url"]) and (c["source"] != "iptv-org" or official(c["name"], c["url"]))
+
     def usable(c):
         # Free-TV states no license: its entries are probed for the report but not copied into the app, the TV downloads that list itself
-        return c["probe"]["status"] in ("OK", "YOUTUBE") and not bare_ip(c["url"]) and c["source"] != "Free-TV" and \
-            (c["source"] != "iptv-org" or official(c["name"], c["url"]))
+        return c["probe"]["status"] in ("OK", "YOUTUBE") and c["source"] != "Free-TV" and authorised(c)
     order = {"M3UPT": 0, "Free-TV": 1, "iptv-org": 2}
     rows = collections.defaultdict(list)
     geo_ids = geo_flagged(cand)
@@ -408,7 +472,8 @@ def main():
           "to a plain request: no Referer, no browser user agent, no DRM key. The segment must be audio/video data (MPEG-TS,",
           "fMP4, MPEG-PS), not a page. Streams declared audio-only by their codecs, or whose segments are ADTS audio, are",
           "refused. An AES-128 segment cannot be sniffed, so it only has to be binary and not served as HTML, JSON or audio (its",
-          "key is not fetched). DASH streams are checked on their manifest only. Streams hosted on a bare IP address are left",
+          "key is not fetched). A DASH stream must have no DRM and its video initialization segment must be MP4 data (media",
+          "segments are not computed). Streams hosted on a bare IP address are left",
           "out of the catalog. Each catalog channel keeps up to 3 other working streams of the same channel as fallbacks:",
           "same tvg-id, quality feeds (@SD, @HD...) merged, other feeds such as languages kept apart, never matched by name.",
           "M3UPT and Free-TV only list official free streams; iptv-org lists any public stream, so from it only free ad-supported",
@@ -426,7 +491,8 @@ def main():
            "## Failure classes", "",
            "EMPTY: HTTP 204 or an empty body or playlist. WEBPAGE: answered 200 with something that is not a stream.",
            "SEGMENT_FORMAT: the segment is a page, JSON or a playlist. AUDIO: audio-only. VARIANT_FORMAT: a variant is not an",
-           "HLS playlist. UNREACHABLE: DNS, TLS, refused connection or timeout on the first request. HTTP403: refused",
+           "HLS playlist. MANIFEST_FORMAT: a DASH manifest that is not XML. UNREACHABLE: DNS, TLS, refused connection or",
+           "timeout on the first request. HTTP403: refused",
            "(403 or 451) at any step. HTTPnnn, VARIANTnnn, SEGMENTnnn: that HTTP status (VARIANT0, SEGMENT0 = timeout).", "",
            "| Result | Streams |", "|---|---|"]
     for status, n in collections.Counter(c["probe"]["status"] for c in cand).most_common():
@@ -438,6 +504,23 @@ def main():
     for c in cand:
         if c["source"] != "iptv-org" and c["lang"] in ("por", "fra") and c["probe"]["status"] not in ("OK", "YOUTUBE"):
             md.append(f"| {c['name']} | {c['source']} | {c['probe']['status']} ({c['probe']['detail']}) | {'yes' if c['headers'] else 'no'} |")
+    md += ["", "## Main channels", "",
+           "Every stream of these channels in the three lists, by tvg-id. A stream that answers counts for the catalog only from an",
+           "official host; an unofficial relay (operator CDN, bare IP) that answers is listed as such and never used.", "",
+           "| Channel | Verdict | Streams (list: result) |", "|---|---|---|"]
+    in_hub = {identity(i["id"]) for r in catalog["rows"] for i in r["items"]}
+    for tid, title in MAIN_CHANNELS.items():
+        mine = [c for c in cand if base_id(c["id"]).lower() == tid]
+        works = [c for c in mine if c["probe"]["status"] == "OK"]
+        statuses = {c["probe"]["status"] for c in mine}
+        verdict = ("working (in the catalog)" if any(identity(c["id"]) in in_hub for c in mine) else
+                   "working from an official host, IPTV section only (Free-TV is not copied)" if any(map(authorised, works)) else
+                   "no authorised stream: only unofficial relays answer" if works else
+                   "DRM: official app only" if "DRM" in statuses else
+                   "refused from here (403: geo-blocking or access control)" if "HTTP403" in statuses else
+                   "unavailable" if mine else "not verified: no stream in the lists")
+        streams = "; ".join(f"{c['source']}: {c['probe']['status']}{'' if authorised(c) or c['probe']['status'] != 'OK' else ' (relay)'}" for c in mine)
+        md.append(f"| {title} | {verdict} | {streams or '-'} |")
     (ROOT / "docs").mkdir(exist_ok=True)
     (ROOT / "docs" / "SOURCES.md").write_text("\n".join(md) + "\n")
     total = sum(len(r["items"]) for r in catalog["rows"])

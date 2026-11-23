@@ -225,6 +225,56 @@ class HlsProbeTests(unittest.TestCase):
         self.assertTrue(result["quality"].startswith("1080p"))
 
 
+FMP4 = b"\x00\x00\x00\x18ftypiso6" + b"\x00" * 300
+MPD = """<?xml version="1.0"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="dynamic">
+  <BaseURL>https://cdn.example.com/live/</BaseURL>
+  <Period id="1">
+    <AdaptationSet mimeType="audio/mp4"><SegmentTemplate initialization="$RepresentationID$/init.mp4" media="$RepresentationID$/$Number$.m4s"/>
+      <Representation id="a1" bandwidth="128000"/></AdaptationSet>
+    <AdaptationSet contentType="video" mimeType="video/mp4">
+      <SegmentTemplate initialization="$RepresentationID$_$Bandwidth$/init.mp4" media="$RepresentationID$/$Number$.m4s"/>
+      <Representation id="v2160" bandwidth="16000000" height="2160"/>
+      <Representation id="v1080" bandwidth="6000000" height="1080"/>
+      <Representation id="v720" bandwidth="3000000" height="720"/>
+    </AdaptationSet>
+  </Period>
+</MPD>"""
+
+
+class DashProbeTests(unittest.TestCase):
+    def test_best_video_up_to_1080p_initialization_segment(self):
+        self.assertEqual("https://cdn.example.com/live/v1080_6000000/init.mp4",
+                         probe_streams.dash_init("https://origin.example.com/x/manifest.mpd", MPD.encode()))
+
+    def test_working_dash_stream(self):
+        with fake({"v1080_6000000/init.mp4": (200, "video/mp4", FMP4)}):
+            self.assertEqual("OK", probe_streams.probe_dash("https://origin.example.com/manifest.mpd", MPD.encode())["status"])
+
+    def test_valid_manifest_but_segments_unavailable(self):
+        for code, ctype, body, status in [(404, "", b"", "SEGMENT404"), (403, "", b"", "HTTP403"), (204, "", b"", "EMPTY"),
+                                          (200, "text/html", HTML, "SEGMENT_FORMAT"), (0, "TimeoutError", b"", "SEGMENT0")]:
+            with fake({"init.mp4": (code, ctype, body)}):
+                self.assertEqual(status, probe_streams.probe_dash("https://o.example.com/m.mpd", MPD.encode())["status"], code)
+
+    def test_drm_and_unreadable_manifests(self):
+        protected = MPD.replace("<Period", '<ContentProtection schemeIdUri="urn:uuid:e2719d58"/><Period', 1)
+        with fake({"m.mpd": (200, "application/dash+xml", protected), "bad.mpd": (200, "application/dash+xml", "<MPD <<")}):
+            self.assertEqual("DRM", probe_streams.probe("https://o.example.com/m.mpd")["status"])
+            self.assertEqual("MANIFEST_FORMAT", probe_streams.probe("https://o.example.com/bad.mpd")["status"])
+
+    def test_manifest_without_initialization_is_only_read(self):
+        base = '<MPD><Period><AdaptationSet mimeType="video/mp4"><Representation id="v" height="720"><BaseURL>v.mp4</BaseURL></Representation></AdaptationSet></Period></MPD>'
+        with fake({}):
+            self.assertEqual("OK", probe_streams.probe_dash("https://o.example.com/m.mpd", base.encode())["status"])
+
+    def test_every_kodiprop_drm_syntax_marks_the_entry(self):
+        text = ("#EXTM3U\n#EXTINF:-1 tvg-id=\"RTP1.pt\",RTP 1\n#KODIPROP:inputstream.adaptive.drm_legacy=org.w3.clearkey|01:02\nhttps://a/m.mpd\n"
+                "#EXTINF:-1,B\n#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha\nhttps://b/m.mpd\n"
+                "#EXTINF:-1,C\n#KODIPROP:inputstream.adaptive.manifest_type=mpd\nhttps://c/m.mpd\n")
+        self.assertEqual([True, True, False], [c["drm"] for c in probe_streams.parse_m3u(text, "M3UPT")])
+
+
 class CatalogTests(unittest.TestCase):
     @staticmethod
     def entry(name, tvg_id, url, status="OK"):
