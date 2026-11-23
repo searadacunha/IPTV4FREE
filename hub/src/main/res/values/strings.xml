@@ -42,6 +42,7 @@
     <string name="app_kodi">lecteur multimédia</string>
     <string name="app_tivimate">lecteur IPTV</string>
     <string name="app_france">chaînes françaises</string>
+    <string name="app_molotov">Molotov Extra : TF1/M6 payants, portabilité UE pour les résidents français éligibles</string>
     <string name="app_paid">sport</string>
 
     <string name="row_continue">Continuer à regarder</string>
@@ -92,9 +93,11 @@
     <string name="play_error">%1$s : %2$s (%3$s).</string>
     <string name="all_failed">Les %d sources connues ont échoué.</string>
     <string name="no_alternative">Aucune autre source connue pour cette chaîne.</string>
-    <string name="rights_fr">Pas de direct gratuit et légal depuis le Portugal : %s ne diffuse pas cette chaîne ici. Gratuits et légaux : France 24, TV5MONDE, ARTE. Payant : le pack France TV de MEO (France 2, 3, 5).</string>
+    <string name="rights_fr">Pas de direct gratuit connu depuis le Portugal sur %s. Molotov Extra peut fonctionner pour des résidents français éligibles en séjour temporaire dans l’UE. MEO Pack France TV : France 2, 3, 5 (payant).</string>
     <string name="official_app">Direct gratuit et officiel : l\'appli %s (rubrique TV en direct).</string>
     <string name="ok_retry">OK : réessayer · Retour : revenir</string>
+    <string name="ok_provider">OK : ouvrir %s · Retour : revenir</string>
+    <string name="molotov_portability">Option Molotov Extra : abonnement et résidence française éligible, séjour temporaire dans l’UE. Accès à cette chaîne non garanti.</string>
     <string name="ok_external">OK : ouvrir dans %s · Retour : revenir</string>
     <string name="no_audio_codec">Son non lu par cette TV (%s)</string>
     <string name="no_video_codec">Image non lue par cette TV (%s)</string>
@@ -139,7 +142,7 @@
     <string name="un_tvi">TVI en direct</string>
     <string name="un_tvi_v">chaînes vérifiées et TVI Player</string>
     <string name="un_fr">TF1, M6, France 2 en direct</string>
-    <string name="un_fr_v">pas de direct gratuit et légal depuis le Portugal : France 24, TV5MONDE, ARTE gratuits, pack France TV de MEO payant (France 2, 3, 5)</string>
+    <string name="un_fr_v">Molotov Extra : chaînes françaises pour résidents français éligibles en séjour temporaire dans l’UE. MEO Pack France TV : France 2, 3, 5 (payant).</string>
     <string name="un_paid">Sport TV, DAZN, Eleven</string>
     <string name="un_paid_v">abonnement payant</string>
 
