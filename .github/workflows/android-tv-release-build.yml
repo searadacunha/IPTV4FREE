@@ -41,6 +41,15 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose build/watched-1.0.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose cinefuse/build/cinefuse-tv-1.0.apk
           sha256sum build/watched-1.0.apk cinefuse/build/cinefuse-tv-1.0.apk
+      # Maven Central answered 429 (Too Many Requests) to an uncached run on 2026-11-23: keep Gradle's downloads
+      - name: Cache Gradle downloads
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('hub/*.gradle.kts', 'hub/gradle/**') }}
+          restore-keys: gradle-${{ runner.os }}-
       - name: Build and test the STREAMING4FREE hub
         shell: bash
         run: |
