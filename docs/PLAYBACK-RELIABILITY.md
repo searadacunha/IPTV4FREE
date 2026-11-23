@@ -115,3 +115,13 @@ Portugal, Porto Canal and BFM TV play from official hosts and are in the catalog
 
 **Still not verified:** playback on the TCL itself (nothing installed on the TV for this change), DASH media segments,
 and whether the catalog's 885 streams keep working after the probe.
+
+
+## France TV access from Portugal — verified options (2026-11-23)
+
+- **Molotov Extra** lists TF1, TMC, TFX, France 2 and M6, and offers cross-border access from Portugal **only for eligible subscribers who reside in France and are travelling temporarily in the EU**. An actual French-residence check and a portability-eligible paid subscription are required. The app's Play Store package is `tv.molotov.app`. Official policies: https://aide.molotov.tv/hc/fr/articles/6042369113105-Acc%C3%A9der-%C3%A0-Molotov-hors-du-territoire-fran%C3%A7ais and https://www.extra.molotov.tv/ .
+- **MEO Pack France TV** is offered in Portugal for 4.99 EUR/month; it carries France Télévisions channels including France 2, France 3, France 5, but **does not claim TF1**. https://www.meo.pt/tv/canais-premium
+- **iptv-org** lists a TF1 1080p operator-CDN feed. The earlier diagnostic reported its HLS as playable on the Portugal home line, but redistribution permissions and availability on the TV remain **unverified**. The public iptv-org folder already exposes it. It is **not** inserted into the bundled trusted catalog or a background fallback.
+- **Free-TV** still has a bare-IP TF1 playlist location which the previous diagnostics found unreachable.
+
+The hub now exposes the official Molotov app as an optional install/open card. If installed, it is offered on failed French provider channels as a one-click transition to Molotov's app interface. This is **not** a direct TF1 channel deep link: Molotov independently checks subscription and territory. The code does not download, decrypt, replay or proxy DRM segments. Existing IPTV sources, favourites and playback settings are preserved. Android TV end-to-end playback and account entitlement are not validated in CI.

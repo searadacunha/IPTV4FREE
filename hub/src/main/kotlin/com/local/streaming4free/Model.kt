@@ -101,6 +101,8 @@ val APPS = listOf(
     App("iptv4free", listOf("com.iptv4free.launcher"), "IPTV4FREE", R.string.app_iptv4free, Terms.FREE, setOf(Cat.IPTV, Cat.LIVE), false),
     App("kodi", listOf("org.xbmc.kodi"), "Kodi", R.string.app_kodi, Terms.FREE, setOf(Cat.IPTV)),
     App("tivimate", listOf("ar.tvplayer.tv"), "TiviMate", R.string.app_tivimate, Terms.FREEMIUM, setOf(Cat.IPTV)),
+    // Molotov Extra: paid French residency portability on temporary EU travel.
+    App("molotov", listOf("tv.molotov.app"), "Molotov", R.string.app_molotov, Terms.FREEMIUM, setOf(Cat.LIVE, Cat.SPORT)),
     App("francetv", listOf("fr.francetv.pluzz"), "france.tv", R.string.app_france, Terms.FRANCE, setOf(Cat.LIVE)),
     App("tf1", listOf("fr.tf1.mytf1"), "TF1+", R.string.app_france, Terms.FRANCE, setOf(Cat.LIVE)),
     App("m6", listOf("fr.m6.m6replay"), "M6+", R.string.app_france, Terms.FRANCE, setOf(Cat.LIVE)),

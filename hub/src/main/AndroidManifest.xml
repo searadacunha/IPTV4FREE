@@ -10,6 +10,7 @@
     <!-- the hub only looks up which TV apps are installed, to open them; VLC and mpv play codecs the TV lacks -->
     <queries>
         <package android:name="org.videolan.vlc" />
+        <package android:name="tv.molotov.app" />
         <package android:name="is.xyz.mpv" />
         <intent>
             <action android:name="android.intent.action.MAIN" />

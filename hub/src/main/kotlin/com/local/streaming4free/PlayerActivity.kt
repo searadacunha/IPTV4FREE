@@ -69,6 +69,7 @@ class PlayerActivity : Activity() {
     private var watching = false
     private var notice: String? = null // a track this TV cannot decode
     private var external: Pair<String, String>? = null // VLC or mpv, offered after a codec failure
+    private var provider: App? = null // official app handoff, not an IPTV URL
     private val handler = Handler(Looper.getMainLooper())
     private val watchdog = Runnable { player?.let { it.stop(); fail(if (offline()) Kind.LOCAL_NETWORK else Kind.TIMEOUT, "") } }
 
@@ -124,6 +125,7 @@ class PlayerActivity : Activity() {
         failed = false
         waiting = false
         external = null
+        provider = null
         mime = null
         play()
     }
@@ -280,12 +282,22 @@ class PlayerActivity : Activity() {
     private fun giveUp(kind: Kind, detail: String, url: String) {
         failed = true
         external = if (kind == Kind.CODEC) PLAYERS.firstOrNull { installed(it.first) } else null
+        // Official app handoff is opt-in. Access depends on the subscriber's actual
+        // French residence and EU travel eligibility; no extracted stream is used.
+        provider = if (external == null && rightsService(channel.id, channel.title) != null)
+            APPS.firstOrNull { it.id == "molotov" && it.launchIntent(packageManager) != null }
+        else null
         val where = listOf(detail.takeIf { it.startsWith("HTTP") }.orEmpty(), Uri.parse(url).host.orEmpty()).filter { it.isNotEmpty() }
         val lines = mutableListOf(getString(R.string.play_error, channel.title, kindText(kind), where.joinToString(", ")),
             if (urls.size > 1) getString(R.string.all_failed, urls.size) else getString(R.string.no_alternative))
         rightsService(channel.id, channel.title)?.let { lines += getString(R.string.rights_fr, it) }
         officialApp(channel.id, channel.title)?.let { lines += getString(R.string.official_app, it) }
-        lines += external?.let { getString(R.string.ok_external, it.second) } ?: getString(R.string.ok_retry)
+        provider?.let { lines += getString(R.string.molotov_portability) }
+        lines += when {
+            external != null -> getString(R.string.ok_external, external!!.second)
+            provider != null -> getString(R.string.ok_provider, provider!!.title)
+            else -> getString(R.string.ok_retry)
+        }
         show(lines.joinToString("\n"))
     }
 
@@ -351,11 +363,27 @@ class PlayerActivity : Activity() {
         if ((failed || waiting) && e.keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
             if (e.action == KeyEvent.ACTION_UP) {
                 val ext = external
-                if (failed && ext != null) openExternal(ext.first) else { release(); restart() }
+                if (failed && ext != null) openExternal(ext.first)
+                else if (failed && provider != null) openProvider(provider!!)
+                else { release(); restart() }
             }
             return true
         }
         return view.dispatchKeyEvent(e) || super.dispatchKeyEvent(e)
+    }
+
+    /** Open the licensed app home screen; the provider checks entitlements itself. */
+    private fun openProvider(app: App) {
+        val launch = app.launchIntent(packageManager)
+        if (launch == null) {
+            Toast.makeText(this, R.string.not_installed, Toast.LENGTH_LONG).show()
+            return
+        }
+        try {
+            startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, R.string.not_installed, Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun openExternal(pkg: String) = try {
