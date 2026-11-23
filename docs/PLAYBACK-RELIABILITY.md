@@ -125,3 +125,74 @@ and whether the catalog's 885 streams keep working after the probe.
 - **Free-TV** still has a bare-IP TF1 playlist location which the previous diagnostics found unreachable.
 
 The hub now exposes the official Molotov app as an optional install/open card. If installed, it is offered on failed French provider channels as a one-click transition to Molotov's app interface. This is **not** a direct TF1 channel deep link: Molotov independently checks subscription and territory. The code does not download, decrypt, replay or proxy DRM segments. Existing IPTV sources, favourites and playback settings are preserved. Android TV end-to-end playback and account entitlement are not validated in CI.
+
+## Second follow-up, 2026-11-23: every French source found on GitHub
+
+**Sweep.** GitHub code search for files declaring `tvg-id="TF1.fr"` returned 102 playlists (forks of iptv-org and
+Free-TV, French IPTV repositories, paid-IPTV advertising repositories). Their 555 distinct URLs for TF1, TMC, TFX, LCI,
+M6, W9, 6ter, France 2 to 5, franceinfo, Arte, CNews and BFM TV were probed from the house line like the catalog
+(playlist, variant, segment). 533 could be probed, 65 answered. Answered / tested, by kind of host:
+
+| Channel | Broadcaster CDN | Official video platform | Operator feed | GitHub wrapper | Restream / unknown | Bare IP |
+|---|---|---|---|---|---|---|
+| TF1 | 0/4 | 0/0 | 1/5 | 2/4 | 4/37 | 0/6 |
+| TMC | 0/7 | 0/0 | 2/6 | 2/3 | 1/20 | 0/2 |
+| TFX | 0/3 | 0/0 | 1/4 | 2/3 | 1/12 | 0/2 |
+| LCI | 0/2 | 0/0 | 1/4 | 2/5 | 0/12 | 0/4 |
+| M6 | 0/1 | 0/0 | 2/9 | 0/1 | 2/33 | 2/5 |
+| W9 | 0/1 | 0/0 | 1/6 | 0/1 | 1/20 | 0/3 |
+| 6ter | 0/0 | 0/0 | 1/7 | 0/1 | 1/17 | 0/4 |
+| France 2 | 0/0 | 0/0 | 1/7 | 0/6 | 3/27 | 0/5 |
+| France 3 | 0/0 | 0/0 | 2/8 | 0/6 | 1/25 | 2/5 |
+| France 4 | 0/0 | 0/0 | 1/7 | 0/4 | 1/20 | 0/6 |
+| France 5 | 0/0 | 0/0 | 1/7 | 0/6 | 1/21 | 0/6 |
+| franceinfo | 0/0 | 1/1 | 1/5 | 5/6 | 0/9 | 0/2 |
+| Arte | 0/5 | 0/0 | 1/6 | 2/8 | 1/12 | 1/7 |
+| CNews | 1/2 | 0/2 | 1/4 | 2/7 | 0/14 | 0/1 |
+| BFM TV | 4/5 | 0/0 | 2/5 | 0/0 | 1/12 | 0/0 |
+
+- *Broadcaster CDN*: hosts of TF1, France Télévisions, M6, Canal+, Arte, BFM. TF1's (`tf1-hls-live-ssl.tf1.fr`,
+  `*.diff.tf1.fr`), M6's and Arte's refuse or do not answer from Portugal.
+- *Operator feed*: an operator's distribution reachable without login (`cdn-redge.media` under `oeu/mt`, the Swiss
+  `netplus.ch`, `wilmaa`, `zappr`, `shahid.net`). *GitHub wrapper*: playlists rewritten by a third party, mostly
+  ParaTV, whose TF1+ and france.tv links carry tokens it obtains from those services (TF1+ requires an account and a
+  location in its territories). *Restream*: sites and paid-IPTV panels (`81637.org`, `vipcamel4k.com`,
+  `offshorerev.cc`, `easy747.com`, `tntendirect.com`...).
+- No TF1 stream from TF1 or from a distributor authorised to show it freely in Portugal answers. Using a third party's
+  TF1+ token, an operator feed or a paid-IPTV panel is not done; the hub never adds them to its catalog or fallbacks.
+
+**iptv-org's TF1 (`r.eu.cdn-redge.media/.../oeu/mt/live/tf1/`), measured.** H.264 High 1920x1080 50 fps, AAC-LC
+stereo 48 kHz, variants 1080p/720p/540p/360p; 180 s decoded by FFmpeg 8.1 in 176 s with the hub's user agent, 4
+connections closed by the server (reconnected), 2 corrupt packets at start-up. It is technically playable by Media3,
+and the iptv-org folder of the hub opens it as before; its rights stay unverified, so it is neither in the catalog nor
+used as a fallback.
+
+**Added to the catalog (all measured from Portugal).**
+
+- `tools/official.m3u`, streams the broadcaster serves itself outside the three lists: **CNews** (Canal+ group CDN,
+  free-to-air feed, 1080p; 180 s decoded cleanly) and **franceinfo** (its own YouTube live, playable from Portugal,
+  opened by the YouTube app).
+- BFM's CDN (`ncdn-live-bfm.pfd.sfr.net`, where Free-TV lists BFM TV): **BFM Business, BFM Tech & Co and 10 regional
+  BFM channels**. BFM Business decoded for 180 s; that CDN closes its connections often (82 reconnections in 3 min,
+  picture kept), to watch on the TV.
+- Removed: **RT en français, RT News, RT en español** (from M3UPT): EU Council Regulation 2022/350 and its extensions
+  forbid broadcasting RT in the EU, the internet included. The runtime IPTV folders still show the lists as published.
+- Catalog: 896 channels.
+
+**Legal ways to watch TF1, M6 and France 2 from Portugal.** Molotov Extra or TF1+ / M6+ only for subscribers resident
+in France travelling temporarily in the EU (portability); MEO's paid "Pack France TV" for France 2, 3 and 5. The hub
+offers Molotov after a French channel fails when it is installed (PR #9).
+
+**Installing this version on the TV without losing data.** Android updates an app in place only when the new APK is
+signed by the same key. HUB 1.0 (`com.local.streaming4free`) was signed by `27cf445d…`, a key kept only in the archive
+of `~/.android` on the quarantined external disk; no build on this Mac can update it today. The only key on the Mac
+(`aef9b8cd…`) matches the test app `com.local.streaming4free.test`, which `docs/SIGNING.md` says was installed while the
+project memory says nothing was installed on 2026-11-18: not verified on the TV. CI and test builds use a debug key and
+cannot update either app.
+
+**CI.** The push build of 55af4da failed on HTTP 429 from Maven Central (dependencies of the Android Gradle plugin,
+empty runner cache); the workflow now caches Gradle's downloads.
+
+**Not verified:** playback on the TCL TV (nothing installed, no ADB connection: the Mac's ADB key changed on
+2026-11-17 and connecting would show a prompt on the TV), BFM regional channels other than BFM Business beyond the
+probe, franceinfo in the YouTube app of the TV.

@@ -277,7 +277,9 @@ class RightsTest {
         assertEquals("TF1+", rightsService("", "TMC"))
         assertEquals("M6+", rightsService("", "M6 HD"))
         assertEquals("france.tv", rightsService("", "France 2 (1080p)"))
-        assertEquals("france.tv", rightsService("franceinfo.fr", "franceinfo:"))
+        assertNull(rightsService("franceinfo.fr", "franceinfo:")) // free on its own YouTube channel
+        assertEquals("YouTube", officialApp("Franceinfo.fr@SD", "Franceinfo (720p)"))
+        assertEquals("YouTube", officialApp("", "franceinfo:"))
         assertNull(rightsService("France24.fr", "France 24"))
         assertNull(rightsService("", "TV5MONDE Europe"))
     }

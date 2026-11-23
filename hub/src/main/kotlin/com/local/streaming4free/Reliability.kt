@@ -183,11 +183,11 @@ fun mimeLabel(mime: String?): String = when (mime) {
 private val RIGHTS_BY_ID = mapOf(
     "tf1.fr" to "TF1+", "tmc.fr" to "TF1+", "tfx.fr" to "TF1+", "tf1seriesfilms.fr" to "TF1+", "lci.fr" to "TF1+",
     "m6.fr" to "M6+", "w9.fr" to "M6+", "6ter.fr" to "M6+",
-    "france2.fr" to "france.tv", "france3.fr" to "france.tv", "france4.fr" to "france.tv", "france5.fr" to "france.tv", "franceinfo.fr" to "france.tv",
+    "france2.fr" to "france.tv", "france3.fr" to "france.tv", "france4.fr" to "france.tv", "france5.fr" to "france.tv",
 )
 private val RIGHTS_BY_NAME = mapOf(
     "tf1" to "TF1+", "tmc" to "TF1+", "tfx" to "TF1+", "lci" to "TF1+", "m6" to "M6+", "w9" to "M6+", "6ter" to "M6+",
-    "france 2" to "france.tv", "france 3" to "france.tv", "france 4" to "france.tv", "france 5" to "france.tv", "franceinfo" to "france.tv",
+    "france 2" to "france.tv", "france 3" to "france.tv", "france 4" to "france.tv", "france 5" to "france.tv",
 )
 private val BRACKETS = Regex("""\(.*?\)|\[.*?]""")
 private val SPACES = Regex("\\s+")
@@ -202,6 +202,9 @@ fun rightsService(id: String, title: String): String? = RIGHTS_BY_ID[channelKey(
 private val RTP = setOf("rtp1.pt", "rtp2.pt", "rtp3.pt", "rtpnoticias.pt", "rtpmemoria.pt", "rtpacores.pt", "rtpmadeira.pt", "rtpafrica.pt", "rtpmundo.pt")
 private val RTP_NAMES = Regex("rtp ?(1|2|3|notícias|noticias|memória|memoria|açores|acores|madeira|áfrica|africa|mundo)")
 
-/** The free official app that carries this channel's live here, or null. */
-fun officialApp(id: String, title: String): String? =
-    if (channelKey(id) in RTP || RTP_NAMES.matches(plainTitle(title))) "RTP Play" else null
+/** The free official app that carries this channel's live here, or null. franceinfo (checked 2026-11-23): its own YouTube live. */
+fun officialApp(id: String, title: String): String? = when {
+    channelKey(id) in RTP || RTP_NAMES.matches(plainTitle(title)) -> "RTP Play"
+    channelKey(id) == "franceinfo.fr" || plainTitle(title).trimEnd(':') == "franceinfo" -> "YouTube"
+    else -> null
+}

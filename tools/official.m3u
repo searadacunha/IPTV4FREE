@@ -1,0 +1,14 @@
+#EXTM3U
+# Streams found outside M3UPT, Free-TV and iptv-org, served by the broadcaster's own CDN with no token, login or DRM.
+# tools/probe_streams.py probes them like the others: an entry enters the catalog only when it plays from here.
+# Add a stream only with the reason it is the broadcaster's own, and never a relay, an operator feed or a tokenised URL.
+#
+# CNews (checked 2026-11-23): free-to-air ("clair") feed on the Canal+ group's Akamai property; the lists only give its
+# Dailymotion live (Free-TV, a page) or a third-party wrapper of it (iptv-org).
+#EXTINF:-1 tvg-id="CNews.fr" tvg-logo="https://i.imgur.com/sSNhk2g.png" group-title="France",CNews
+https://hls-m015-live-aka-canalplus.akamaized.net/live/disk/cnews-clair-hd/hls-v3-hd-clair/cnews-clair-hd.m3u8
+#
+# franceinfo (checked 2026-11-23): France Télévisions' 24-hour news channel, live on its own YouTube channel (owner
+# "franceinfo", playable from Portugal); Free-TV lists this URL, iptv-org only an operator feed. Opened by the YouTube app.
+#EXTINF:-1 tvg-id="Franceinfo.fr" tvg-logo="https://i.imgur.com/eITXz6A.png" group-title="France",franceinfo
+https://www.youtube.com/c/franceinfo/live

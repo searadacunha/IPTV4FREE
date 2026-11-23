@@ -16,9 +16,9 @@ kept. Free-TV states no license, so none of its entries is copied into the app: 
 
 | List | Entries | Probed | Working | Needs browser headers | DRM | In the catalog |
 |---|---|---|---|---|---|---|
-| M3UPT | 937 | 159 | 135 | 10 | 4 | 88 |
+| M3UPT | 937 | 159 | 135 | 10 | 4 | 85 |
 | Free-TV | 2203 | 121 | 71 | 0 | 0 | 0 |
-| iptv-org | 11505 | 2073 | 1445 | 75 | 0 | 797 |
+| iptv-org | 11505 | 2073 | 1445 | 75 | 0 | 809 |
 
 Probed = the Portuguese and French candidates, plus English and Spanish channels of the themed categories.
 
@@ -32,11 +32,11 @@ timeout on the first request. HTTP403: refused
 
 | Result | Streams |
 |---|---|
-| OK | 1627 |
+| OK | 1628 |
 | UNREACHABLE | 264 |
 | HTTP403 | 233 |
 | HTTP404 | 143 |
-| YOUTUBE | 24 |
+| YOUTUBE | 25 |
 | WEBPAGE | 13 |
 | HTTP400 | 13 |
 | SEGMENT404 | 6 |
@@ -57,17 +57,17 @@ timeout on the first request. HTTP403: refused
 | Category | Row | Channels | Fallback streams |
 |---|---|---|---|
 | live | pt | 22 | 6 |
-| live | fra | 49 | 0 |
+| live | fra | 61 | 0 |
 | live | por | 47 | 0 |
 | live | kids | 34 | 0 |
 | live | music | 14 | 0 |
-| live | news | 22 | 2 |
+| live | news | 20 | 2 |
 | live | other | 12 | 0 |
 | sport | por | 2 | 0 |
 | sport | fra | 5 | 0 |
 | sport | int | 77 | 1 |
 | docs | por | 9 | 0 |
-| docs | fra | 7 | 0 |
+| docs | fra | 8 | 0 |
 | docs | int | 98 | 2 |
 | movies | por | 26 | 0 |
 | movies | fra | 20 | 0 |
@@ -146,8 +146,9 @@ official host; an unofficial relay (operator CDN, bare IP) that answers is liste
 | W9 | no authorised stream: only unofficial relays answer | Free-TV: HTTP403; iptv-org: OK (relay) |
 | 6ter | no authorised stream: only unofficial relays answer | Free-TV: HTTP403; iptv-org: OK (relay) |
 | LCI | no authorised stream: only unofficial relays answer | Free-TV: HTTP403; iptv-org: OK (relay); iptv-org: UNREACHABLE |
+| franceinfo | working (in the catalog) | Officiel: YOUTUBE; Free-TV: YOUTUBE; iptv-org: OK (relay) |
 | BFMTV | working (in the catalog) | M3UPT: OK; Free-TV: OK; iptv-org: OK (relay) |
-| CNews | no authorised stream: only unofficial relays answer | Free-TV: WEBPAGE; iptv-org: OK (relay) |
+| CNews | working (in the catalog) | Officiel: OK; Free-TV: WEBPAGE; iptv-org: OK (relay) |
 | RTP 1 | DRM: official app only | M3UPT: DRM; Free-TV: HTTP404; iptv-org: HTTP404 |
 | RTP 2 | DRM: official app only | M3UPT: DRM; Free-TV: HTTP404; iptv-org: HTTP404 |
 | RTP Notícias | working (in the catalog) | M3UPT: OK; Free-TV: OK; iptv-org: OK; iptv-org: OK |

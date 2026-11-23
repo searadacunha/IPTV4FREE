@@ -41,13 +41,28 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose build/watched-1.0.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose cinefuse/build/cinefuse-tv-1.0.apk
           sha256sum build/watched-1.0.apk cinefuse/build/cinefuse-tv-1.0.apk
+      # Maven Central answered 429 (Too Many Requests) to an uncached run on 2026-11-23: keep Gradle's downloads
+      - name: Cache Gradle downloads
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('hub/*.gradle.kts', 'hub/gradle/**') }}
+          restore-keys: gradle-${{ runner.os }}-
       - name: Build and test the STREAMING4FREE hub
         shell: bash
         run: |
           set -euo pipefail
           export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           export JAVA_HOME="${JAVA_HOME_17_X64}"
-          ( cd hub && ./gradlew --no-daemon testDebugUnitTest assembleRelease )
+          # retried only on Maven Central's rate limit (HTTP 429): a compile or test failure fails at once
+          for attempt in 1 2 3; do
+            if ( cd hub && ./gradlew --no-daemon testDebugUnitTest assembleRelease ) 2>&1 | tee "$RUNNER_TEMP/gradle.log"; then break; fi
+            if [ "$attempt" -eq 3 ] || ! grep -q "status code 429" "$RUNNER_TEMP/gradle.log"; then exit 1; fi
+            echo "Maven Central answered 429: attempt $((attempt + 1)) in $((attempt * 90)) s"
+            sleep $((attempt * 90))
+          done
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify hub/build/outputs/apk/release/streaming4free-hub-release.apk
           python3 tools/probe_streams.py --help > /dev/null  # runs the probe's own self-check
           python3 -m unittest discover -s tools/tests -p 'test_*.py' -v
