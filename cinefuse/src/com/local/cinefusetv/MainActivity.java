@@ -23,9 +23,11 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
-/** Opens https://cinefuse.cc full screen; Back = previous page, then the TV home screen. */
+/** Opens Cinefuse full screen; Back = previous page, then the TV home screen (inside IPTV4FREE: its menu). */
 public class MainActivity extends Activity {
-    static final String HOME = "https://cinefuse.cc"; // reference address: the site redirects it to its current domain
+    // checked 2026-11-23: cinefuse.cc and the older domains now redirect to the address page referia.lol/cinefuse,
+    // which names cinefuse.xyz; the next move goes through that page again (allowed below)
+    static final String HOME = "https://cinefuse.xyz";
     /** The site's TV stylesheet sets position:relative on every focused element, so the player (fixed inset-0)
      * collapses to 0 px high as soon as the remote focuses it: the video plays but is invisible. Keep the site's own position. */
     static final String TV_CSS_FIX = "(function(){if(document.getElementById('cinefuse-tv-fix'))return;"
@@ -59,7 +61,7 @@ public class MainActivity extends Activity {
                 Uri u = r.getUrl();
                 String scheme = u.getScheme();
                 if (!"http".equals(scheme) && !"https".equals(scheme)) return true; // intent:, market:... are ignored: stay on the site
-                if (!r.isForMainFrame() || isSite(u.getHost())) return false; // video players in iframes keep their own hosts
+                if (!r.isForMainFrame() || isSite(u.getHost()) || isAddressPage(u.getHost())) return false; // video players in iframes keep their own hosts
                 Toast.makeText(MainActivity.this, "Lien externe bloqué : " + u.getHost(), Toast.LENGTH_SHORT).show(); // ads, popups
                 return true;
             }
@@ -117,7 +119,12 @@ public class MainActivity extends Activity {
      * The dead WebView is only detached here (it is destroyed with this activity) and the app starts again on its home page. */
     boolean restart(WebView dead) {
         root.removeView(dead);
-        startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
+        if (getPackageName().equals("com.local.cinefusetv")) // the standalone app: a fresh task
+            startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
+        else { // inside IPTV4FREE: only this screen starts again, the menu stays behind it
+            startActivity(new Intent(this, MainActivity.class));
+            finish();
+        }
         return true;
     }
 
@@ -133,6 +140,11 @@ public class MainActivity extends Activity {
         if (host == null) return false;
         String[] l = host.toLowerCase(java.util.Locale.ROOT).split("\\.");
         return l.length >= 2 && "cinefuse".equals(l[l.length - 2]);
+    }
+
+    /** The site's address page (Referia), where its old domains redirect after a move; its link leads to the new cinefuse.* domain. */
+    public static boolean isAddressPage(String host) {
+        return "referia.lol".equalsIgnoreCase(host);
     }
 
     @Override public void onBackPressed() {

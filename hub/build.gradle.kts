@@ -19,9 +19,11 @@ android {
         applicationId = "com.local.streaming4free"
         minSdk = 23
         targetSdk = 34 // same as WATCHED and CINEFUSE TV
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "2.0" // IPTV4FREE: the hub and the Kodi interface merged into one app
     }
+    // WATCHED and CINEFUSE TV run inside the app, from the same sources as their standalone builds
+    sourceSets.getByName("main") { java.srcDirs("../src", "../cinefuse/src") }
     if (signing.isFile) signingConfigs.create("stable") {
         storeFile = file(signingProps.getProperty("storeFile"))
         storePassword = signingProps.getProperty("storePassword")
@@ -48,13 +50,14 @@ android {
 
 dependencies {
     val media3 = "1.11.1"
-    implementation("androidx.leanback:leanback:1.2.0")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.media3:media3-exoplayer:$media3")
     implementation("androidx.media3:media3-exoplayer-hls:$media3")
     implementation("androidx.media3:media3-exoplayer-dash:$media3")
     implementation("androidx.media3:media3-ui:$media3")
     implementation("io.coil-kt:coil:2.7.0")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("net.sf.kxml:kxml2:2.3.0") // the XML parser Android ships, for the guide tests
 }
 
 val checkReleaseKey by tasks.registering {
@@ -74,4 +77,16 @@ val checkReleaseKey by tasks.registering {
         if (got != expected) throw GradleException("Release key certificate $got, expected $expected (signing/release-cert.sha256).")
     }
 }
-tasks.matching { it.name == "packageRelease" }.configureEach { dependsOn(checkReleaseKey) }
+// The IPTV4FREE lists (France, Portugal, Monde: the Kodi interface's 8 041 channels) are built on the Mac by
+// tcl_tv/iptv and kept out of git (they hold relays the public catalog excludes): ./import_tv_lists.sh copies them in.
+val checkTvLists by tasks.registering {
+    val dir = file("src/main/assets/tv")
+    val test = testBuild
+    doLast {
+        val missing = listOf("france", "portugal", "monde").filter { !dir.resolve("$it.m3u").isFile }
+        if (missing.isEmpty()) return@doLast
+        if (!test) throw GradleException("IPTV4FREE lists missing in $dir: $missing. Run ./import_tv_lists.sh; for a test build only: S4F_TEST_BUILD=1.")
+        logger.warn("Test build without the IPTV4FREE lists $missing: catalog channels only.")
+    }
+}
+tasks.matching { it.name == "packageRelease" }.configureEach { dependsOn(checkReleaseKey, checkTvLists) }

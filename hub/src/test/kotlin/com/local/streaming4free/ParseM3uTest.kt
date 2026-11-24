@@ -93,4 +93,21 @@ class ParseM3uTest {
         assertTrue(Channel("a", "https://youtu.be/abc").isYouTube)
         assertFalse(Channel("a", "https://example.com/youtube.com/x.m3u8").isYouTube)
     }
+
+    @Test
+    fun kodiYouTubeLinksBecomeYouTubePages() {
+        val list = parseM3u(sequenceOf(
+            "#EXTM3U",
+            "#EXTINF:-1 tvg-id=\"FranceInfo.fr\",Franceinfo",
+            "plugin://plugin.video.youtube/play/?video_id=NG7ZX42nZKc",
+            "#EXTINF:-1,Other Kodi add-on",
+            "plugin://plugin.video.other/play/?id=1",
+            "#EXTINF:-1,Not an id",
+            "plugin://plugin.video.youtube/play/?video_id=../../etc",
+        ), "IPTV4FREE")
+        assertEquals(listOf("Franceinfo"), list.map { it.title })
+        assertEquals("https://www.youtube.com/watch?v=NG7ZX42nZKc", list[0].url)
+        assertTrue(list[0].isYouTube)
+        assertEquals(null, playable("rtmp://example.com/live"))
+    }
 }

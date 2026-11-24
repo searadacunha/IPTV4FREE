@@ -124,15 +124,23 @@ object Catalog {
     var checked = ""
         private set
     private var rows: List<Row> = emptyList()
+    /** URL -> country code the probe gave, for the menu's country and language sections. */
+    var countries: Map<String, String> = emptyMap()
+        private set
 
     @Synchronized
     fun rows(c: Context): List<Row> {
         if (rows.isEmpty()) {
             val o = JSONObject(c.assets.open("catalog.json").bufferedReader().use { it.readText() })
             checked = o.getString("checked")
+            val codes = HashMap<String, String>()
             rows = o.getJSONArray("rows").objects().map { r ->
-                Row(r.getString("cat"), r.getString("row"), r.getJSONArray("items").objects().map { channel(it).copy(group = countryName(it.optString("c"))) })
+                Row(r.getString("cat"), r.getString("row"), r.getJSONArray("items").objects().map {
+                    codes[it.getString("u")] = it.optString("c")
+                    channel(it).copy(group = countryName(it.optString("c")))
+                })
             }
+            countries = codes
         }
         return rows
     }
@@ -235,7 +243,7 @@ private val HEADER_OPT = Regex("http-(referrer|user-agent)", RegexOption.IGNORE_
 private val DRM_PROP = Regex("license|drm|clearkey|widevine|playready", RegexOption.IGNORE_CASE)
 
 /**
- * Reads an extended M3U playlist. Left out: entries that are not http(s), and entries that only play with a DRM key
+ * Reads an extended M3U playlist. Left out: entries that are not http(s) (Kodi's YouTube links become YouTube pages), and entries that only play with a DRM key
  * written in the list. Request headers a list declares (browser user agent, Referer) are never sent by the player:
  * such entries are only flagged, as are the geo-blocked ones.
  */
@@ -254,12 +262,13 @@ fun parseM3u(lines: Sequence<String>, source: String): List<Channel> {
             line.startsWith("#") -> {}
             else -> {
                 val inf = info
-                if (inf != null && !drm && (line.startsWith("http://") || line.startsWith("https://"))) {
+                val url = playable(line)
+                if (inf != null && !drm && url != null) {
                     val comma = nameComma(inf)
                     val a = ATTR.findAll(if (comma < 0) inf else inf.substring(0, comma)).associate { it.groupValues[1] to it.groupValues[2] }
                     val text = if (comma < 0) "" else inf.substring(comma + 1)
                     val name = text.replace(GEO_LABEL, "").replace(MARKERS, "").trim()
-                    out += Channel(name.ifEmpty { a["tvg-name"].orEmpty() }, line, a["tvg-logo"].orEmpty(), a["group-title"].orEmpty(), source,
+                    out += Channel(name.ifEmpty { a["tvg-name"].orEmpty() }, url, a["tvg-logo"].orEmpty(), a["group-title"].orEmpty(), source,
                         a["tvg-id"].orEmpty(), geo = 'Ⓖ' in text || GEO_LABEL.containsMatchIn(text),
                         headers = headers || "http-referrer" in a || "http-user-agent" in a)
                 }
@@ -270,6 +279,14 @@ fun parseM3u(lines: Sequence<String>, source: String): List<Channel> {
         }
     }
     return out
+}
+
+private val KODI_YOUTUBE = Regex("""^plugin://plugin\.video\.youtube/play/\?video_id=([\w-]{6,20})$""")
+
+/** An http(s) URL as is; Kodi's YouTube add-on link (IPTV4FREE's franceinfo) as the YouTube page SmartTube opens; anything else null. */
+internal fun playable(line: String): String? = when {
+    line.startsWith("http://") || line.startsWith("https://") -> line
+    else -> KODI_YOUTUBE.find(line)?.let { "https://www.youtube.com/watch?v=" + it.groupValues[1] }
 }
 
 /** The comma that ends the attributes: the first one outside double quotes, so quotes and commas in the name stay. */

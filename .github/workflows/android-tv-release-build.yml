@@ -50,7 +50,7 @@ jobs:
             ~/.gradle/wrapper
           key: gradle-${{ runner.os }}-${{ hashFiles('hub/*.gradle.kts', 'hub/gradle/**') }}
           restore-keys: gradle-${{ runner.os }}-
-      - name: Build and test the STREAMING4FREE hub
+      - name: Build and test IPTV4FREE (hub/, the one Android TV app)
         shell: bash
         run: |
           set -euo pipefail
@@ -70,7 +70,7 @@ jobs:
           import json, re
           from pathlib import Path
           rows = json.loads(Path("hub/src/main/assets/catalog.json").read_text())["rows"]
-          titles = set(re.findall(r'"(\w+/\w+)" to R\.string', Path("hub/src/main/kotlin/com/local/streaming4free/MainActivity.kt").read_text()))
+          titles = set(re.findall(r'"(\w+/\w+)" to R\.string', Path("hub/src/main/kotlin/com/local/streaming4free/Menu.kt").read_text()))
           missing = {f"{r['cat']}/{r['row']}" for r in rows} - titles
           assert rows and not missing, f"catalog rows without a title: {missing}"
           assert all(i["u"].startswith(("http://", "https://")) for r in rows for i in r["items"])

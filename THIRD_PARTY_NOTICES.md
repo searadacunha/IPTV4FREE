@@ -19,11 +19,14 @@ is rendered with the macOS system font Avenir Next Condensed; no font file is in
 
 | Component | Use | License |
 |-----------|-----|---------|
-| AndroidX Leanback, Fragment, RecyclerView, Core | TV menu, rows, grids, search | Apache-2.0 |
+| AndroidX RecyclerView, Core | Menu columns (IPTV4FREE 2.0 no longer uses Leanback) | Apache-2.0 |
 | AndroidX Media3 (ExoPlayer, HLS, DASH, UI) | Player | Apache-2.0 |
 | Coil (with OkHttp, Okio, Kotlin coroutines) | Channel logos | Apache-2.0 |
 | Kotlin standard library | Runtime | Apache-2.0 |
 | Gradle wrapper, Android Gradle plugin | Building the hub | Apache-2.0 |
+| [Noto Sans](https://github.com/notofonts/latin-greek-cyrillic) 2.015, `hub/src/main/res/font/noto_sans.ttf` | The IPTV4FREE interface's font (as in Kodi's Estuary skin) | SIL Open Font License 1.1, Copyright 2022 The Noto Project Authors |
+| kXML2 | XML parser for the TV-guide unit tests only (Android ships its own); not in the APK | BSD-style (kXML2 license) |
+| XMLTV guides `xmltvfr.fr` (TNT) and `epgshare01.online` (Portugal) | Downloaded by the TV for the TV guide; nothing copied into this repository | Terms of each site |
 
 ## Channel lists
 

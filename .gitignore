@@ -11,3 +11,6 @@ local.properties
 *.p12
 *.pfx
 signing.properties
+
+# IPTV4FREE lists, copied by hub/import_tv_lists.sh from the Mac (relays the public catalog excludes)
+hub/src/main/assets/tv/

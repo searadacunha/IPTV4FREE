@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- IPTV4FREE: the Kodi interface (script.iptv4free, 1920x1080) in dp on a 960x540 dp TV: rail, groups, channels, now/next -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/iptv4free_backdrop">
+
+    <FrameLayout
+        android:id="@+id/browse"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- rail: official logo + sections -->
+        <View android:layout_width="165dp" android:layout_height="match_parent" android:background="@color/rail" />
+        <ImageView
+            android:layout_width="150dp" android:layout_height="100dp"
+            android:layout_marginStart="7.5dp" android:layout_marginTop="9dp"
+            android:importantForAccessibility="no" android:scaleType="fitCenter" android:src="@drawable/iptv4free_logo" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rail"
+            android:layout_width="150dp" android:layout_height="384dp"
+            android:layout_marginStart="12dp" android:layout_marginTop="116dp" />
+        <TextView
+            android:id="@+id/status" style="@style/Txt.Dim"
+            android:layout_width="145dp" android:layout_height="32dp"
+            android:layout_marginStart="12dp" android:layout_marginTop="503dp"
+            android:maxLines="2" android:singleLine="false" android:textSize="11sp" />
+
+        <!-- groups -->
+        <TextView
+            android:id="@+id/groups_title" style="@style/Txt.Label"
+            android:layout_width="155dp" android:layout_height="20dp"
+            android:layout_marginStart="176dp" android:layout_marginTop="38dp" android:textSize="12.5sp" />
+        <EditText
+            android:id="@+id/search"
+            android:layout_width="155dp" android:layout_height="36dp"
+            android:layout_marginStart="175dp" android:layout_marginTop="24dp"
+            android:background="@drawable/bg_search" android:hint="@string/search_hint"
+            android:imeOptions="actionSearch|flagNoExtractUi" android:importantForAutofill="no" android:inputType="text"
+            android:paddingStart="10dp" android:paddingEnd="10dp" android:singleLine="true"
+            android:textColor="#FFFFFFFF" android:textColorHint="@color/text_dim" android:textSize="14sp" android:visibility="gone" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/groups"
+            android:layout_width="155dp" android:layout_height="435dp"
+            android:layout_marginStart="175dp" android:layout_marginTop="65dp" />
+
+        <!-- channels and everything else -->
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="200dp" android:layout_height="24dp"
+            android:layout_marginStart="345dp" android:layout_marginTop="33dp"
+            android:textColor="#FFFFFFFF" android:textSize="16sp" android:textStyle="bold" />
+        <TextView
+            android:id="@+id/count" style="@style/Txt.Dim"
+            android:layout_width="90dp" android:layout_height="20dp"
+            android:layout_marginStart="545dp" android:layout_marginTop="38dp" android:gravity="end" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/items"
+            android:layout_width="290dp" android:layout_height="435dp"
+            android:layout_marginStart="345dp" android:layout_marginTop="65dp" />
+        <TextView
+            android:id="@+id/empty" style="@style/Txt.Dim"
+            android:layout_width="270dp" android:layout_height="wrap_content"
+            android:layout_marginStart="355dp" android:layout_marginTop="200dp"
+            android:gravity="center" android:maxLines="6" android:singleLine="false" android:textSize="14sp" android:visibility="gone" />
+
+        <!-- now / next panel with the live preview -->
+        <TextClock
+            android:layout_width="290dp" android:layout_height="34dp"
+            android:layout_marginStart="650dp" android:layout_marginTop="12dp"
+            android:format12Hour="HH:mm" android:format24Hour="HH:mm" android:gravity="end"
+            android:textColor="#FFFFFFFF" android:textSize="26sp" android:textStyle="bold" />
+        <TextClock
+            android:id="@+id/date" style="@style/Txt.Dim"
+            android:layout_width="290dp" android:layout_height="18dp"
+            android:layout_marginStart="650dp" android:layout_marginTop="47dp"
+            android:format12Hour="EEEE d MMMM yyyy" android:format24Hour="EEEE d MMMM yyyy" android:gravity="end" />
+        <FrameLayout
+            android:layout_width="290dp" android:layout_height="163dp"
+            android:layout_marginStart="650dp" android:layout_marginTop="70dp" android:background="@color/box">
+            <ImageView
+                android:id="@+id/preview_logo"
+                android:layout_width="150dp" android:layout_height="100dp" android:layout_gravity="center"
+                android:importantForAccessibility="no" android:scaleType="fitCenter" />
+        </FrameLayout>
+        <TextView
+            android:id="@+id/d_title"
+            android:layout_width="290dp" android:layout_height="26dp"
+            android:layout_marginStart="650dp" android:layout_marginTop="241dp"
+            android:textColor="#FFFFFFFF" android:textSize="18sp" android:textStyle="bold" />
+        <TextView
+            android:id="@+id/d_sub" style="@style/Txt.Dim"
+            android:layout_width="290dp" android:layout_height="18dp"
+            android:layout_marginStart="650dp" android:layout_marginTop="268dp" />
+        <LinearLayout
+            android:id="@+id/d_epg"
+            android:layout_width="290dp" android:layout_height="wrap_content"
+            android:layout_marginStart="650dp" android:layout_marginTop="290dp"
+            android:orientation="vertical" android:visibility="gone">
+            <FrameLayout android:layout_width="match_parent" android:layout_height="16dp">
+                <TextView style="@style/Txt.Label" android:layout_width="wrap_content" android:layout_height="match_parent" android:text="@string/now_label" />
+                <TextView android:id="@+id/d_now_time" style="@style/Txt.Dim" android:layout_width="wrap_content" android:layout_height="match_parent" android:layout_gravity="end" />
+            </FrameLayout>
+            <TextView
+                android:id="@+id/d_now"
+                android:layout_width="match_parent" android:layout_height="40dp"
+                android:maxLines="2" android:singleLine="false" android:textColor="#FFFFFFFF" android:textSize="14sp" />
+            <ProgressBar android:id="@+id/d_bar" style="@style/Bar" android:layout_width="match_parent" android:layout_height="3dp" android:layout_marginTop="2dp" />
+            <FrameLayout android:layout_width="match_parent" android:layout_height="16dp" android:layout_marginTop="9dp">
+                <TextView style="@style/Txt.Label" android:layout_width="wrap_content" android:layout_height="match_parent" android:text="@string/next_label" />
+                <TextView android:id="@+id/d_next_time" style="@style/Txt.Dim" android:layout_width="wrap_content" android:layout_height="match_parent" android:layout_gravity="end" />
+            </FrameLayout>
+            <TextView android:id="@+id/d_next" style="@style/Txt.Dim" android:layout_width="match_parent" android:layout_height="20dp" android:textSize="15sp" />
+            <TextView style="@style/Txt.Label" android:layout_width="match_parent" android:layout_height="16dp" android:layout_marginTop="10dp" android:text="@string/programme_label" />
+            <TextView style="@style/Txt.Dim" android:layout_width="match_parent" android:layout_height="18dp" android:text="@string/programme_hint" android:textColor="@color/text_sub" />
+        </LinearLayout>
+        <TextView
+            android:id="@+id/d_body" style="@style/Txt.Dim"
+            android:layout_width="290dp" android:layout_height="205dp"
+            android:layout_marginStart="650dp" android:layout_marginTop="292dp"
+            android:gravity="top" android:lineSpacingExtra="2dp" android:maxLines="11" android:singleLine="false" android:textSize="13.5sp" />
+        <!-- a channel's programme (→ on the channel) -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/progs"
+            android:layout_width="290dp" android:layout_height="166dp"
+            android:layout_marginStart="650dp" android:layout_marginTop="290dp" android:visibility="gone" />
+        <TextView
+            android:id="@+id/prog_desc" style="@style/Txt.Dim"
+            android:layout_width="290dp" android:layout_height="46dp"
+            android:layout_marginStart="650dp" android:layout_marginTop="459dp"
+            android:maxLines="3" android:singleLine="false" android:textColor="@color/text_sub" android:textSize="12sp" android:visibility="gone" />
+
+        <!-- remote hints -->
+        <TextView
+            android:id="@+id/footer"
+            android:layout_width="764dp" android:layout_height="22dp"
+            android:layout_marginStart="176dp" android:layout_marginTop="509dp"
+            android:textColor="@color/hint" android:textSize="12.5sp" />
+    </FrameLayout>
+
+    <!-- the player: full screen, or in the preview box (moved by MainActivity.setMode) -->
+    <FrameLayout
+        android:id="@+id/player_box"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:background="#FF000000" android:visibility="gone">
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/player_view"
+            android:layout_width="match_parent" android:layout_height="match_parent" />
+        <TextView
+            android:id="@+id/message"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="center" android:layout_marginStart="48dp" android:layout_marginEnd="48dp"
+            android:background="#CC0A0E18" android:gravity="center" android:padding="24dp"
+            android:singleLine="false" android:textColor="#FFFFFFFF" android:textSize="22sp" android:visibility="gone" />
+        <TextView
+            android:id="@+id/playing"
+            android:layout_width="match_parent" android:layout_height="20dp" android:layout_gravity="bottom"
+            android:background="@color/rail" android:gravity="center_vertical" android:paddingStart="8dp" android:paddingEnd="8dp"
+            android:textColor="#FFFFFFFF" android:textSize="12.5sp" android:visibility="gone" />
+        <LinearLayout
+            android:id="@+id/banner"
+            android:layout_width="match_parent" android:layout_height="96dp"
+            android:background="@drawable/shade_top" android:gravity="center_vertical" android:orientation="horizontal"
+            android:paddingStart="40dp" android:paddingEnd="40dp" android:visibility="gone">
+            <TextView android:id="@+id/banner_num" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minWidth="44dp" android:gravity="end" android:textColor="@color/label" android:textSize="26sp" />
+            <ImageView android:id="@+id/banner_logo" android:layout_width="80dp" android:layout_height="48dp" android:layout_marginStart="14dp" android:importantForAccessibility="no" android:scaleType="fitCenter" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
+                <TextView android:id="@+id/banner_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#FFFFFFFF" android:textSize="22sp" android:textStyle="bold" />
+                <TextView android:id="@+id/banner_now" style="@style/Txt.Dim" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="15sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- start: the official logo, as the Kodi interface's loading view -->
+    <FrameLayout
+        android:id="@+id/splash"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:background="#FF000000">
+        <ImageView
+            android:layout_width="540dp" android:layout_height="360dp"
+            android:layout_gravity="center_horizontal" android:layout_marginTop="60dp"
+            android:importantForAccessibility="no" android:scaleType="fitCenter" android:src="@drawable/iptv4free_logo" />
+        <TextView
+            android:id="@+id/splash_text" style="@style/Txt.Dim"
+            android:layout_width="match_parent" android:layout_height="26dp" android:layout_marginTop="440dp"
+            android:gravity="center" android:text="@string/loading_channels" android:textSize="15sp" />
+    </FrameLayout>
+</FrameLayout>

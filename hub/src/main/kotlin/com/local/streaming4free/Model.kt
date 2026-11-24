@@ -1,22 +1,19 @@
 package com.local.streaming4free
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 
-/** The hub's sections, in the order of the left menu. */
-enum class Cat(val title: Int) {
-    HOME(R.string.cat_home), MOVIES(R.string.cat_movies), SERIES(R.string.cat_series), LIVE(R.string.cat_live),
-    SPORT(R.string.cat_sport), DOCS(R.string.cat_docs), YOUTUBE(R.string.cat_youtube), IPTV(R.string.cat_iptv),
-    FAVORITES(R.string.cat_favorites), CONTINUE(R.string.cat_continue), SETTINGS(R.string.cat_settings),
-}
+/** Where an app is offered in the menu. */
+enum class Cat { MOVIES, SERIES, LIVE, SPORT, DOCS, YOUTUBE, IPTV }
 
-/** Everything a card can show. */
+/** Everything a row can show. */
 sealed class Item {
     abstract val key: String
     abstract val title: String
 }
 
-/** One stream, from the checked catalog or from a public playlist. */
+/** One stream, from the checked catalog, the IPTV4FREE lists or a public playlist. */
 data class Channel(
     override val title: String,
     val url: String,
@@ -44,7 +41,10 @@ enum class Terms(val label: Int) {
     FRANCE(R.string.terms_france), PAID(R.string.terms_paid), SITE(R.string.terms_site),
 }
 
-/** An app the hub opens. It never reads that app's data: Android gives no access to it. */
+/**
+ * An app IPTV4FREE opens. It never reads that app's data: Android gives no access to it.
+ * [site] = a web service built into IPTV4FREE (WATCHED, CINEFUSE): no other app needed.
+ */
 data class App(
     val id: String,
     val packages: List<String>, // first installed one wins
@@ -53,26 +53,44 @@ data class App(
     val terms: Terms,
     val cats: Set<Cat>,
     val onPlayStore: Boolean = true,
+    val site: Class<*>? = null,
 ) : Item() {
     override val key get() = "app:$id"
 
-    fun launchIntent(pm: PackageManager): Intent? =
-        packages.firstNotNullOfOrNull { pm.getLeanbackLaunchIntentForPackage(it) ?: pm.getLaunchIntentForPackage(it) }
+    fun launchIntent(c: Context): Intent? = site?.let { Intent(c, it) }
+        ?: packages.firstNotNullOfOrNull { c.packageManager.getLeanbackLaunchIntentForPackage(it) ?: c.packageManager.getLaunchIntentForPackage(it) }
 
     fun installedPackage(pm: PackageManager) = packages.firstOrNull { p ->
         try { pm.getApplicationInfo(p, 0).enabled } catch (e: PackageManager.NameNotFoundException) { false }
     }
 
+    fun ready(pm: PackageManager) = site != null || installedPackage(pm) != null
+
     /** Free apps are offered for installation; paid or geo-blocked ones only show once installed. */
-    fun visible(pm: PackageManager) = installedPackage(pm) != null || (onPlayStore && terms in setOf(Terms.FREE, Terms.ACCOUNT, Terms.FREEMIUM))
+    fun visible(pm: PackageManager) = ready(pm) || (onPlayStore && terms in setOf(Terms.FREE, Terms.ACCOUNT, Terms.FREEMIUM))
 }
 
-/** A group of a playlist (country, category), opened as a grid. */
+/** A group of a playlist (country, category). */
 class Folder(override val title: String, val channels: List<Channel>, val source: String) : Item() {
     override val key get() = "folder:$source:$title"
 }
 
-/** A settings card, or a plain hint when [id] is empty. */
+/** A menu level: its rows are computed when shown, since favorites, history and downloads change. [slow] ones load off the main thread. */
+class Section(
+    override val key: String,
+    override val title: String,
+    val label2: String = "",
+    val slow: Boolean = false,
+    val load: () -> List<Item>,
+) : Item()
+
+/** A programme of the TV guide; OK plays its channel. */
+data class Programme(val channel: Channel, val prog: Guide.Prog) : Item() {
+    override val key get() = "prog:${channel.url}:${prog.start}"
+    override val title get() = prog.title
+}
+
+/** A settings row, or a plain hint when [id] is empty. */
 data class Setting(val id: String, override val title: String, val value: String = "") : Item() {
     override val key get() = "setting:$id:$title"
 }
@@ -80,8 +98,9 @@ data class Setting(val id: String, override val title: String, val value: String
 private val MOVIES_SERIES = setOf(Cat.MOVIES, Cat.SERIES)
 
 val APPS = listOf(
-    App("cinefuse", listOf("com.local.cinefusetv"), "CINEFUSE TV", R.string.app_cinefuse, Terms.SITE, MOVIES_SERIES, false),
-    App("watched", listOf("com.local.watchedtv"), "WATCHED", R.string.app_watched, Terms.SITE, MOVIES_SERIES, false),
+    // WATCHED and CINEFUSE TV used to be apps of their own: their code now runs inside IPTV4FREE
+    App("cinefuse", emptyList(), "CINEFUSE", R.string.app_cinefuse, Terms.SITE, MOVIES_SERIES, false, com.local.cinefusetv.MainActivity::class.java),
+    App("watched", emptyList(), "WATCHED", R.string.app_watched, Terms.SITE, MOVIES_SERIES, false, com.local.watchedtv.MainActivity::class.java),
     // checked on the TV in Portugal on 2026-11-11; Pluto TV ("not available in your location") and Tubi (not offered) are left out
     App("plex", listOf("com.plexapp.android"), "Plex", R.string.app_plex, Terms.FREE, MOVIES_SERIES + Cat.DOCS),
     App("rakuten", listOf("tv.wuaki.apptv", "tv.wuaki"), "Rakuten TV", R.string.app_rakuten, Terms.FREEMIUM, MOVIES_SERIES),
@@ -98,7 +117,8 @@ val APPS = listOf(
     App("smarttube", listOf("org.smarttube.stable", "org.smarttube.beta"), "SmartTube", R.string.app_smarttube, Terms.FREE, setOf(Cat.YOUTUBE), false),
     App("youtube", listOf("com.google.android.youtube.tv"), "YouTube", R.string.app_youtube, Terms.FREE, setOf(Cat.YOUTUBE)),
     App("ytmusic", listOf("com.google.android.youtube.tvmusic"), "YouTube Music", R.string.app_ytmusic, Terms.FREE, setOf(Cat.YOUTUBE)),
-    App("iptv4free", listOf("com.iptv4free.launcher"), "IPTV4FREE", R.string.app_iptv4free, Terms.FREE, setOf(Cat.IPTV, Cat.LIVE), false),
+    // the former IPTV4FREE tile (Kodi interface): shown only while it is still installed
+    App("iptv4free", listOf("com.iptv4free.launcher"), "IPTV4FREE Kodi", R.string.app_iptv4free, Terms.FREE, setOf(Cat.IPTV), false),
     App("kodi", listOf("org.xbmc.kodi"), "Kodi", R.string.app_kodi, Terms.FREE, setOf(Cat.IPTV)),
     App("tivimate", listOf("ar.tvplayer.tv"), "TiviMate", R.string.app_tivimate, Terms.FREEMIUM, setOf(Cat.IPTV)),
     // Molotov Extra: paid French residency portability on temporary EU travel.

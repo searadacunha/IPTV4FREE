@@ -1,13 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Hub" parent="Theme.Leanback">
+    <!-- Noto Sans: the Kodi interface's font (Estuary skin), shipped in res/font -->
+    <style name="Theme.Hub" parent="android:Theme.Material.NoActionBar.Fullscreen">
         <item name="android:windowBackground">@color/background</item>
-        <item name="android:colorPrimary">@color/brand</item>
-        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:colorAccent">@color/focus</item>
+        <item name="android:colorPrimary">@color/background</item>
+        <item name="android:textViewStyle">@style/Txt</item>
+        <item name="android:editTextStyle">@style/Txt.Edit</item>
+        <item name="android:windowAnimationStyle">@null</item>
     </style>
 
-    <style name="Theme.Hub.Player" parent="android:Theme.Material.NoActionBar.Fullscreen">
-        <item name="android:windowBackground">@android:color/black</item>
-        <item name="android:colorAccent">@color/accent</item>
+    <style name="Txt" parent="android:Widget.Material.TextView">
+        <item name="android:fontFamily">@font/noto_sans</item>
+        <item name="android:textColor">@color/text</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+    <style name="Txt.Edit" parent="android:Widget.Material.EditText">
+        <item name="android:fontFamily">@font/noto_sans</item>
+    </style>
+
+    <style name="Txt.Label">
+        <item name="android:textColor">@color/label</item>
+        <item name="android:textSize">11.5sp</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+
+    <style name="Txt.Dim">
+        <item name="android:textColor">@color/text_dim</item>
+        <item name="android:textSize">12.5sp</item>
+    </style>
+
+    <style name="Bar" parent="android:Widget.Material.ProgressBar.Horizontal">
+        <item name="android:progressDrawable">@drawable/bar</item>
+        <item name="android:max">100</item>
     </style>
 </resources>

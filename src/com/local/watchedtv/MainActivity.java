@@ -18,7 +18,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
-/** Opens https://watched.cx full screen; Back = previous page, then the TV home screen. */
+/** Opens https://watched.cx full screen; Back = previous page, then the TV home screen (inside IPTV4FREE: its menu). */
 public class MainActivity extends Activity {
     static final String HOME = "https://watched.cx";
     FrameLayout root;
@@ -88,7 +88,12 @@ public class MainActivity extends Activity {
      * The dead WebView is only detached here (it is destroyed with this activity) and the app starts again on its home page. */
     boolean restart(WebView dead) {
         root.removeView(dead);
-        startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
+        if (getPackageName().equals("com.local.watchedtv")) // the standalone app: a fresh task
+            startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
+        else { // inside IPTV4FREE: only this screen starts again, the menu stays behind it
+            startActivity(new Intent(this, MainActivity.class));
+            finish();
+        }
         return true;
     }
 
